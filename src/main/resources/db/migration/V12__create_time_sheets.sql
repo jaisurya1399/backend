@@ -7,6 +7,8 @@ CREATE TABLE time_sheets (
 
     task TEXT NULL,
 
+    value NUMERIC(8,2),
+
     created_at TIMESTAMP NULL,
 
     updated_at TIMESTAMP NULL,
@@ -37,7 +39,7 @@ CREATE TABLE time_sheet_cells (
 
     time_sheet_id BIGINT NOT NULL,
 
-    value DOUBLE PRECISION NOT NULL,
+    value NUMERIC(8,2),
 
     is_trip BOOLEAN NOT NULL DEFAULT FALSE,
 

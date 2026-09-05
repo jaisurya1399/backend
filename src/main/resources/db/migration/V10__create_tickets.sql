@@ -27,7 +27,7 @@ CREATE TABLE tickets (
 
     priority_id BIGINT NOT NULL,
 
-    estimation DOUBLE PRECISION NULL,
+    estimation NUMERIC(8,2),
 
     epic_id BIGINT NULL,
 

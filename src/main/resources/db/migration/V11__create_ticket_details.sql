@@ -159,7 +159,7 @@ CREATE TABLE ticket_hours (
 
     user_id BIGINT NOT NULL,
 
-    value DOUBLE PRECISION NOT NULL,
+    value NUMERIC(8,2),
 
     created_at TIMESTAMP NULL,
 

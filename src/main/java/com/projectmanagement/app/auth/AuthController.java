@@ -1,5 +1,6 @@
 package com.projectmanagement.app.auth;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,5 +36,14 @@ public class AuthController {
 
         return ResponseEntity.ok(
                 authService.getCurrentUser(email));
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<SignupResponse> signup(
+            @Valid @RequestBody SignupRequest request) {
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(authService.signup(request));
     }
 }

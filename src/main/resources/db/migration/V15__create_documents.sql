@@ -1,7 +1,9 @@
 CREATE TABLE documents (
     id BIGSERIAL PRIMARY KEY,
 
-    file_name VARCHAR(500) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+
+    original_name VARCHAR(500) NOT NULL,
 
     content_type VARCHAR(255) NOT NULL,
 

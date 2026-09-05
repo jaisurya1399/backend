@@ -49,7 +49,7 @@ public class TicketHour {
     @JoinColumn(name = "user_id", nullable = false, foreignKey = @ForeignKey(name = "ticket_hours_user_id_foreign"))
     private User user;
 
-    @Column(name = "value", nullable = false, precision = 8, scale = 2)
+    @Column(name = "value", precision = 8, scale = 2)
     private BigDecimal value;
 
     @Column(name = "comment", columnDefinition = "TEXT")

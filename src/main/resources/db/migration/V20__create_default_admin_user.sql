@@ -1,12 +1,28 @@
 -- ============================================================
--- V19: Create initial ADMIN role assignment
+-- V20: Create default ADMIN user
 -- ============================================================
---
--- IMPORTANT:
--- This migration does NOT create a user.
---
--- The application should create the first user through the
--- registration/user creation flow and then assign ADMIN.
+
+INSERT INTO users (
+    name,
+    email,
+    password,
+    created_at,
+    updated_at
+)
+SELECT
+    'Jai Surya',
+    'jaisurya1399@gmail.com',
+    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+    CURRENT_TIMESTAMP,
+    CURRENT_TIMESTAMP
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM users
+    WHERE email = 'jaisurya1399@gmail.com'
+);
+
+-- ============================================================
+-- Assign ADMIN role to default user
 -- ============================================================
 
 INSERT INTO model_has_roles (
