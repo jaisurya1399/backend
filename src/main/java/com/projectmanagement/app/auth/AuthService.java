@@ -26,6 +26,7 @@ public class AuthService {
                         UserRepository userRepository,
                         JwtService jwtService,
                         PasswordEncoder passwordEncoder) {
+
                 this.authenticationManager = authenticationManager;
                 this.userRepository = userRepository;
                 this.jwtService = jwtService;
@@ -49,17 +50,22 @@ public class AuthService {
 
                 String token = jwtService.generateToken(userDetails);
 
+                String role = userRepository
+                                .findRoleNameByUserId(user.getId())
+                                .map(String::toUpperCase)
+                                .orElse(null);
+
                 return AuthResponse.builder()
                                 .accessToken(token)
                                 .tokenType("Bearer")
                                 .userId(user.getId())
                                 .name(user.getName())
                                 .email(user.getEmail())
+                                .role(role)
                                 .build();
         }
 
-        public AuthMeResponse getCurrentUser(
-                        String email) {
+        public AuthMeResponse getCurrentUser(String email) {
 
                 User user = userRepository
                                 .findByEmail(email)
@@ -67,10 +73,16 @@ public class AuthService {
                                 .orElseThrow(() -> new UsernameNotFoundException(
                                                 "User not found"));
 
+                String role = userRepository
+                                .findRoleNameByUserId(user.getId())
+                                .map(String::toUpperCase)
+                                .orElse(null);
+
                 return AuthMeResponse.builder()
                                 .userId(user.getId())
                                 .name(user.getName())
                                 .email(user.getEmail())
+                                .role(role)
                                 .build();
         }
 

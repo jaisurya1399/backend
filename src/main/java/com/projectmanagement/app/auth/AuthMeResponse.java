@@ -18,4 +18,6 @@ public class AuthMeResponse {
     private String name;
 
     private String email;
+
+    private String role;
 }

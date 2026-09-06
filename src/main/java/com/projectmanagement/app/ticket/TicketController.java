@@ -23,15 +23,13 @@ public class TicketController {
 
         private final TicketService ticketService;
 
-        public TicketController(
-                        TicketService ticketService) {
-
+        public TicketController(TicketService ticketService) {
                 this.ticketService = ticketService;
         }
 
-        // =========================================================
-        // GET ALL
-        // =========================================================
+        // ============================================================
+        // GET ALL TICKETS
+        // ============================================================
 
         @GetMapping
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -41,9 +39,9 @@ public class TicketController {
                                 ticketService.getAll());
         }
 
-        // =========================================================
-        // GET ACTIVE
-        // =========================================================
+        // ============================================================
+        // GET ACTIVE TICKETS
+        // ============================================================
 
         @GetMapping("/active")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -53,9 +51,9 @@ public class TicketController {
                                 ticketService.getAllActive());
         }
 
-        // =========================================================
-        // GET DELETED
-        // =========================================================
+        // ============================================================
+        // GET DELETED TICKETS
+        // ============================================================
 
         @GetMapping("/deleted")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -65,9 +63,27 @@ public class TicketController {
                                 ticketService.getDeleted());
         }
 
-        // =========================================================
-        // GET BY CODE
-        // =========================================================
+        // ============================================================
+        // GET MY TASKS
+        // ============================================================
+        // Returns tickets where responsible_id belongs to
+        // currently authenticated user.
+        //
+        // Example:
+        // GET /api/tickets/my-tasks
+        // ============================================================
+
+        @GetMapping("/my-tasks")
+        @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
+        public ResponseEntity<List<TicketResponse>> getMyTasks() {
+
+                return ResponseEntity.ok(
+                                ticketService.getMyTasks());
+        }
+
+        // ============================================================
+        // GET TICKET BY CODE
+        // ============================================================
 
         @GetMapping("/code/{code}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -78,9 +94,9 @@ public class TicketController {
                                 ticketService.getByCode(code));
         }
 
-        // =========================================================
-        // GET BY PROJECT
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY PROJECT
+        // ============================================================
 
         @GetMapping("/project/{projectId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -91,9 +107,9 @@ public class TicketController {
                                 ticketService.getByProject(projectId));
         }
 
-        // =========================================================
-        // GET ACTIVE BY PROJECT
-        // =========================================================
+        // ============================================================
+        // GET ACTIVE TICKETS BY PROJECT
+        // ============================================================
 
         @GetMapping("/project/{projectId}/active")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -101,13 +117,12 @@ public class TicketController {
                         @PathVariable Long projectId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getActiveByProject(
-                                                projectId));
+                                ticketService.getActiveByProject(projectId));
         }
 
-        // =========================================================
-        // GET BY OWNER
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY OWNER
+        // ============================================================
 
         @GetMapping("/owner/{ownerId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -118,9 +133,9 @@ public class TicketController {
                                 ticketService.getByOwner(ownerId));
         }
 
-        // =========================================================
-        // GET BY RESPONSIBLE
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY RESPONSIBLE USER
+        // ============================================================
 
         @GetMapping("/responsible/{responsibleId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -128,13 +143,12 @@ public class TicketController {
                         @PathVariable Long responsibleId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByResponsible(
-                                                responsibleId));
+                                ticketService.getByResponsible(responsibleId));
         }
 
-        // =========================================================
-        // GET BY STATUS
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY STATUS
+        // ============================================================
 
         @GetMapping("/status/{statusId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -145,9 +159,9 @@ public class TicketController {
                                 ticketService.getByStatus(statusId));
         }
 
-        // =========================================================
-        // GET BY TYPE
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY TYPE
+        // ============================================================
 
         @GetMapping("/type/{typeId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -158,9 +172,9 @@ public class TicketController {
                                 ticketService.getByType(typeId));
         }
 
-        // =========================================================
-        // GET BY PRIORITY
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY PRIORITY
+        // ============================================================
 
         @GetMapping("/priority/{priorityId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -168,13 +182,12 @@ public class TicketController {
                         @PathVariable Long priorityId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByPriority(
-                                                priorityId));
+                                ticketService.getByPriority(priorityId));
         }
 
-        // =========================================================
-        // GET BY EPIC
-        // =========================================================
+        // ============================================================
+        // GET TICKETS BY EPIC
+        // ============================================================
 
         @GetMapping("/epic/{epicId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
@@ -185,40 +198,48 @@ public class TicketController {
                                 ticketService.getByEpic(epicId));
         }
 
-        // =========================================================
-        // SEARCH
-        // =========================================================
+        // ============================================================
+        // SEARCH TICKETS
+        // ============================================================
 
         @GetMapping("/search")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> search(
-                        @RequestParam String name) {
+                        @RequestParam String keyword) {
 
                 return ResponseEntity.ok(
-                                ticketService.search(name));
+                                ticketService.search(keyword));
         }
 
-        // =========================================================
-        // SEARCH IN PROJECT
-        // =========================================================
+        // ============================================================
+        // SEARCH TICKETS BY PROJECT
+        // ============================================================
 
         @GetMapping("/project/{projectId}/search")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> searchInProject(
+        public ResponseEntity<List<TicketResponse>> searchByProject(
                         @PathVariable Long projectId,
-                        @RequestParam String name) {
+                        @RequestParam String keyword) {
 
                 return ResponseEntity.ok(
                                 ticketService.searchInProject(
                                                 projectId,
-                                                name));
+                                                keyword));
         }
 
-        // =========================================================
-        // GET BY ID
-        // =========================================================
+        // ============================================================
+        // GET TICKET BY ID
+        // ============================================================
+        // Numeric-only ID prevents:
+        //
+        // /api/tickets/my-tasks
+        //
+        // from being interpreted as:
+        //
+        // /api/tickets/{id}
+        // ============================================================
 
-        @GetMapping("/{id}")
+        @GetMapping("/{id:\\d+}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<TicketResponse> getById(
                         @PathVariable Long id) {
@@ -227,9 +248,9 @@ public class TicketController {
                                 ticketService.getById(id));
         }
 
-        // =========================================================
-        // CREATE
-        // =========================================================
+        // ============================================================
+        // CREATE TICKET
+        // ============================================================
 
         @PostMapping
         @PreAuthorize("hasAuthority('ticket.create') or hasRole('ADMIN')")
@@ -238,31 +259,28 @@ public class TicketController {
 
                 return ResponseEntity
                                 .status(HttpStatus.CREATED)
-                                .body(
-                                                ticketService.create(request));
+                                .body(ticketService.create(request));
         }
 
-        // =========================================================
-        // UPDATE
-        // =========================================================
+        // ============================================================
+        // UPDATE TICKET
+        // ============================================================
 
-        @PutMapping("/{id}")
+        @PutMapping("/{id:\\d+}")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
         public ResponseEntity<TicketResponse> update(
                         @PathVariable Long id,
                         @Valid @RequestBody TicketRequest request) {
 
                 return ResponseEntity.ok(
-                                ticketService.update(
-                                                id,
-                                                request));
+                                ticketService.update(id, request));
         }
 
-        // =========================================================
-        // RESTORE
-        // =========================================================
+        // ============================================================
+        // RESTORE TICKET
+        // ============================================================
 
-        @PutMapping("/{id}/restore")
+        @PutMapping("/{id:\\d+}/restore")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
         public ResponseEntity<TicketResponse> restore(
                         @PathVariable Long id) {
@@ -271,11 +289,11 @@ public class TicketController {
                                 ticketService.restore(id));
         }
 
-        // =========================================================
-        // SOFT DELETE
-        // =========================================================
+        // ============================================================
+        // SOFT DELETE TICKET
+        // ============================================================
 
-        @DeleteMapping("/{id}")
+        @DeleteMapping("/{id:\\d+}")
         @PreAuthorize("hasAuthority('ticket.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> delete(
                         @PathVariable Long id) {
@@ -285,13 +303,13 @@ public class TicketController {
                 return ResponseEntity.noContent().build();
         }
 
-        // =========================================================
-        // PERMANENT DELETE
-        // =========================================================
+        // ============================================================
+        // PERMANENT DELETE TICKET
+        // ============================================================
 
-        @DeleteMapping("/{id}/permanent")
+        @DeleteMapping("/{id:\\d+}/permanent")
         @PreAuthorize("hasAuthority('ticket.delete') or hasRole('ADMIN')")
-        public ResponseEntity<Void> permanentDelete(
+        public ResponseEntity<Void> permanentlyDelete(
                         @PathVariable Long id) {
 
                 ticketService.permanentDelete(id);
