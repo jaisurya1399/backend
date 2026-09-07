@@ -20,8 +20,7 @@ public class TicketCommentRequest {
     @Positive
     private Long ticketId;
 
-    @NotNull
-    @Positive
+    /** Deprecated: author is always derived from the authenticated user. */
     private Long userId;
 
     @NotBlank

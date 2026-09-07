@@ -73,6 +73,14 @@ accepts `q`, `statusId`, `priorityId`, `responsibleId`, `sprintId`, `epicId`,
 `labelId`, `rootOnly`, `page`, `size`, `sort`, and `direction`. Personal saved
 filters are available under `/api/projects/{projectId}/ticket-views`.
 
+Comments now use the authenticated user as author (the deprecated `userId` request
+field is ignored). Authors are auto-subscribed; ticket assignees, subscribers, and
+valid `@email@example.com` mentions receive in-app notifications.
+
+Project reporting is available at `GET /api/projects/{projectId}/analytics`. It
+returns issue health, estimate completion, assignee workload, average lead/cycle
+time in hours, and completed-sprint velocity.
+
 ## Building
 
 ```bash

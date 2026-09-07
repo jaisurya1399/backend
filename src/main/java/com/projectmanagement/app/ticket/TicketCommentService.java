@@ -5,6 +5,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projectmanagement.app.auth.CurrentUserService;
+import com.projectmanagement.app.notification.TicketNotificationService;
+import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
 
@@ -18,11 +21,16 @@ public class TicketCommentService {
     private final TicketCommentRepository ticketCommentRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
+    private final ProjectAccessService projectAccessService;
+    private final TicketSubscriberRepository ticketSubscriberRepository;
+    private final TicketNotificationService ticketNotificationService;
 
     @Transactional(readOnly = true)
     public List<TicketCommentResponse> getAll() {
         return ticketCommentRepository.findAll()
                 .stream()
+                .filter(comment -> projectAccessService.canView(comment.getTicket().getProject()))
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -31,6 +39,7 @@ public class TicketCommentService {
     public List<TicketCommentResponse> getActive() {
         return ticketCommentRepository.findByDeletedAtIsNull()
                 .stream()
+                .filter(comment -> projectAccessService.canView(comment.getTicket().getProject()))
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -40,15 +49,16 @@ public class TicketCommentService {
         TicketComment comment = ticketCommentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Ticket comment not found with id: " + id));
 
+        projectAccessService.requireView(comment.getTicket().getProject());
         return mapToResponse(comment);
     }
 
     @Transactional(readOnly = true)
     public List<TicketCommentResponse> getByTicket(Long ticketId) {
 
-        if (!ticketRepository.existsById(ticketId)) {
-            throw new RuntimeException("Ticket not found with id: " + ticketId);
-        }
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
+        projectAccessService.requireView(ticket.getProject());
 
         return ticketCommentRepository
                 .findByTicketIdAndDeletedAtIsNullOrderByCreatedAtAsc(ticketId)
@@ -66,6 +76,7 @@ public class TicketCommentService {
 
         return ticketCommentRepository.findByUserIdAndDeletedAtIsNull(userId)
                 .stream()
+                .filter(comment -> projectAccessService.canView(comment.getTicket().getProject()))
                 .map(this::mapToResponse)
                 .toList();
     }
@@ -76,9 +87,8 @@ public class TicketCommentService {
                 .orElseThrow(() -> new RuntimeException(
                         "Ticket not found with id: " + request.getTicketId()));
 
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException(
-                        "User not found with id: " + request.getUserId()));
+        projectAccessService.requireEditor(ticket.getProject());
+        User user = currentUserService.getCurrentUser();
 
         TicketComment comment = TicketComment.builder()
                 .ticket(ticket)
@@ -86,8 +96,10 @@ public class TicketCommentService {
                 .content(request.getContent())
                 .build();
 
-        return mapToResponse(
-                ticketCommentRepository.save(comment));
+        TicketComment saved = ticketCommentRepository.save(comment);
+        subscribeIfNeeded(ticket, user);
+        ticketNotificationService.notifyComment(ticket, user, saved.getContent());
+        return mapToResponse(saved);
     }
 
     public TicketCommentResponse update(
@@ -98,16 +110,11 @@ public class TicketCommentService {
                 .orElseThrow(() -> new RuntimeException(
                         "Ticket comment not found with id: " + id));
 
-        Ticket ticket = ticketRepository.findById(request.getTicketId())
-                .orElseThrow(() -> new RuntimeException(
-                        "Ticket not found with id: " + request.getTicketId()));
-
-        User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException(
-                        "User not found with id: " + request.getUserId()));
-
-        comment.setTicket(ticket);
-        comment.setUser(user);
+        projectAccessService.requireEditor(comment.getTicket().getProject());
+        if (!comment.getUser().getId().equals(currentUserService.getCurrentUserId()))
+            throw new RuntimeException("Only the comment author can edit this comment");
+        if (!comment.getTicket().getId().equals(request.getTicketId()))
+            throw new RuntimeException("A comment cannot be moved to another ticket");
         comment.setContent(request.getContent());
 
         return mapToResponse(
@@ -120,6 +127,9 @@ public class TicketCommentService {
                 .orElseThrow(() -> new RuntimeException(
                         "Ticket comment not found with id: " + id));
 
+        projectAccessService.requireEditor(comment.getTicket().getProject());
+        if (!comment.getUser().getId().equals(currentUserService.getCurrentUserId()))
+            throw new RuntimeException("Only the comment author can delete this comment");
         comment.setDeletedAt(java.time.LocalDateTime.now());
 
         ticketCommentRepository.save(comment);
@@ -201,5 +211,10 @@ public class TicketCommentService {
                 .updatedAt(comment.getUpdatedAt())
 
                 .build();
+    }
+
+    private void subscribeIfNeeded(Ticket ticket, User user) {
+        if (!ticketSubscriberRepository.existsByTicketIdAndUserId(ticket.getId(), user.getId()))
+            ticketSubscriberRepository.save(TicketSubscriber.builder().ticket(ticket).user(user).build());
     }
 }
