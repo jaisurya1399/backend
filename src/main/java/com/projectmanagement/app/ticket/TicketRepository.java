@@ -4,187 +4,234 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TicketRepository
-                extends JpaRepository<Ticket, Long> {
+    extends JpaRepository<Ticket, Long> {
 
-        // ============================================================
-        // ACTIVE / DELETED
-        // ============================================================
+  // ============================================================
+  // ACTIVE / DELETED
+  // ============================================================
 
-        List<Ticket> findByDeletedAtIsNull();
+  List<Ticket> findByDeletedAtIsNull();
 
-        List<Ticket> findByDeletedAtIsNotNull();
+  List<Ticket> findByDeletedAtIsNotNull();
 
-        // ============================================================
-        // PROJECT
-        // ============================================================
+  // ============================================================
+  // PROJECT
+  // ============================================================
 
-        List<Ticket> findByProjectId(Long projectId);
+  List<Ticket> findByProjectId(Long projectId);
 
-        List<Ticket> findByProjectIdAndDeletedAtIsNull(
-                        Long projectId);
+  List<Ticket> findByProjectIdAndDeletedAtIsNull(
+      Long projectId);
 
-        long countByProjectId(Long projectId);
+  long countByProjectId(Long projectId);
 
-        long countByProjectIdAndDeletedAtIsNull(
-                        Long projectId);
+  long countByProjectIdAndDeletedAtIsNull(
+      Long projectId);
 
-        // ============================================================
-        // OWNER
-        // ============================================================
+  // ============================================================
+  // OWNER
+  // ============================================================
 
-        List<Ticket> findByOwnerId(Long ownerId);
+  List<Ticket> findByOwnerId(Long ownerId);
 
-        List<Ticket> findByOwnerIdAndDeletedAtIsNull(
-                        Long ownerId);
+  List<Ticket> findByOwnerIdAndDeletedAtIsNull(
+      Long ownerId);
 
-        long countByOwnerId(Long ownerId);
+  long countByOwnerId(Long ownerId);
 
-        // ============================================================
-        // RESPONSIBLE
-        // ============================================================
+  // ============================================================
+  // RESPONSIBLE
+  // ============================================================
 
-        List<Ticket> findByResponsibleId(Long responsibleId);
+  List<Ticket> findByResponsibleId(Long responsibleId);
 
-        List<Ticket> findByResponsibleIdAndDeletedAtIsNull(
-                        Long responsibleId);
+  List<Ticket> findByResponsibleIdAndDeletedAtIsNull(
+      Long responsibleId);
 
-        long countByResponsibleId(Long responsibleId);
+  long countByResponsibleId(Long responsibleId);
 
-        // ============================================================
-        // STATUS
-        // ============================================================
+  // ============================================================
+  // STATUS
+  // ============================================================
 
-        List<Ticket> findByStatusId(Long statusId);
+  List<Ticket> findByStatusId(Long statusId);
 
-        List<Ticket> findByStatusIdAndDeletedAtIsNull(
-                        Long statusId);
+  List<Ticket> findByStatusIdAndDeletedAtIsNull(
+      Long statusId);
 
-        long countByStatusId(Long statusId);
+  long countByStatusId(Long statusId);
 
-        // ============================================================
-        // TYPE
-        // ============================================================
+  // ============================================================
+  // TYPE
+  // ============================================================
 
-        List<Ticket> findByTypeId(Long typeId);
+  List<Ticket> findByTypeId(Long typeId);
 
-        List<Ticket> findByTypeIdAndDeletedAtIsNull(
-                        Long typeId);
+  List<Ticket> findByTypeIdAndDeletedAtIsNull(
+      Long typeId);
 
-        // ============================================================
-        // PRIORITY
-        // ============================================================
+  // ============================================================
+  // PRIORITY
+  // ============================================================
 
-        List<Ticket> findByPriorityId(Long priorityId);
+  List<Ticket> findByPriorityId(Long priorityId);
 
-        List<Ticket> findByPriorityIdAndDeletedAtIsNull(
-                        Long priorityId);
+  List<Ticket> findByPriorityIdAndDeletedAtIsNull(
+      Long priorityId);
 
-        // ============================================================
-        // EPIC
-        // ============================================================
+  // ============================================================
+  // EPIC
+  // ============================================================
 
-        List<Ticket> findByEpicId(Long epicId);
+  List<Ticket> findByEpicId(Long epicId);
 
-        List<Ticket> findByEpicIdAndDeletedAtIsNull(
-                        Long epicId);
+  List<Ticket> findByEpicIdAndDeletedAtIsNull(
+      Long epicId);
 
-        // ============================================================
-        // PROJECT + STATUS
-        // ============================================================
+  // ============================================================
+  // PROJECT + STATUS
+  // ============================================================
 
-        List<Ticket> findByProjectIdAndStatusId(
-                        Long projectId,
-                        Long statusId);
+  List<Ticket> findByProjectIdAndStatusId(
+      Long projectId,
+      Long statusId);
 
-        List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNull(
-                        Long projectId,
-                        Long statusId);
+  List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNull(
+      Long projectId,
+      Long statusId);
 
-        // ============================================================
-        // PROJECT + TYPE
-        // ============================================================
+  // ============================================================
+  // PROJECT + TYPE
+  // ============================================================
 
-        List<Ticket> findByProjectIdAndTypeId(
-                        Long projectId,
-                        Long typeId);
+  List<Ticket> findByProjectIdAndTypeId(
+      Long projectId,
+      Long typeId);
 
-        // ============================================================
-        // PROJECT + PRIORITY
-        // ============================================================
+  // ============================================================
+  // PROJECT + PRIORITY
+  // ============================================================
 
-        List<Ticket> findByProjectIdAndPriorityId(
-                        Long projectId,
-                        Long priorityId);
+  List<Ticket> findByProjectIdAndPriorityId(
+      Long projectId,
+      Long priorityId);
 
-        // ============================================================
-        // PROJECT + EPIC
-        // ============================================================
+  // ============================================================
+  // PROJECT + EPIC
+  // ============================================================
 
-        List<Ticket> findByProjectIdAndEpicId(
-                        Long projectId,
-                        Long epicId);
+  List<Ticket> findByProjectIdAndEpicId(
+      Long projectId,
+      Long epicId);
 
-        List<Ticket> findByProjectIdAndEpicIdAndDeletedAtIsNull(
-                        Long projectId,
-                        Long epicId);
+  List<Ticket> findByProjectIdAndEpicIdAndDeletedAtIsNull(
+      Long projectId,
+      Long epicId);
 
-        // ============================================================
-        // CODE
-        // ============================================================
+  // ============================================================
+  // CODE
+  // ============================================================
 
-        Optional<Ticket> findByCode(String code);
+  Optional<Ticket> findByCode(String code);
 
-        Optional<Ticket> findByCodeAndDeletedAtIsNull(
-                        String code);
+  Optional<Ticket> findByCodeAndDeletedAtIsNull(
+      String code);
 
-        boolean existsByCode(String code);
+  boolean existsByCode(String code);
 
-        boolean existsByCodeAndIdNot(
-                        String code,
-                        Long id);
+  boolean existsByCodeAndIdNot(
+      String code,
+      Long id);
 
-        // ============================================================
-        // NAME
-        // ============================================================
+  // ============================================================
+  // NAME
+  // ============================================================
 
-        List<Ticket> findByNameContainingIgnoreCase(
-                        String name);
+  List<Ticket> findByNameContainingIgnoreCase(
+      String name);
 
-        List<Ticket> findByProjectIdAndNameContainingIgnoreCase(
-                        Long projectId,
-                        String name);
+  List<Ticket> findByProjectIdAndNameContainingIgnoreCase(
+      Long projectId,
+      String name);
 
-        // ============================================================
-        // ORDER
-        // ============================================================
+  // ============================================================
+  // ORDER
+  // ============================================================
 
-        List<Ticket> findByProjectIdOrderByOrderAsc(
-                        Long projectId);
+  List<Ticket> findByProjectIdOrderByOrderAsc(
+      Long projectId);
 
-        List<Ticket> findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(
-                        Long projectId);
+  List<Ticket> findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(
+      Long projectId);
 
-        // ============================================================
-        // PROJECT + STATUS + ORDER
-        // ============================================================
+  // ============================================================
+  // PROJECT + STATUS + ORDER
+  // ============================================================
 
-        List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNullOrderByOrderAsc(
-                        Long projectId,
-                        Long statusId);
+  List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNullOrderByOrderAsc(
+      Long projectId,
+      Long statusId);
 
-        // ============================================================
-        // DELETE BY PROJECT
-        // ============================================================
+  // ============================================================
+  // DELETE BY PROJECT
+  // ============================================================
 
-        void deleteByProjectId(Long projectId);
+  void deleteByProjectId(Long projectId);
 
-        // ============================================================
-        // DELETE BY EPIC
-        // ============================================================
+  // ============================================================
+  // DELETE BY EPIC
+  // ============================================================
 
-        void deleteByEpicId(Long epicId);
+  void deleteByEpicId(Long epicId);
+
+  List<Ticket> findBySprintIdOrderByOrderAsc(Long sprintId);
+
+  List<Ticket> findByProjectIdAndSprintIsNullOrderByOrderAsc(
+      Long projectId);
+
+  long countBySprintId(Long sprintId);
+
+  long countByProjectIdAndSprintIsNull(Long projectId);
+
+  @Query("""
+          SELECT t
+          FROM Ticket t
+          JOIN t.labels l
+          WHERE l.id = :labelId
+          ORDER BY t.id DESC
+      """)
+  List<Ticket> findTicketsByLabelId(
+      @Param("labelId") Long labelId);
+
+  @Query("""
+          SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
+          FROM Ticket t
+          JOIN t.labels l
+          WHERE t.id = :ticketId
+            AND l.id = :labelId
+      """)
+  boolean existsLabelOnTicket(
+      @Param("ticketId") Long ticketId,
+      @Param("labelId") Long labelId);
+
+  List<Ticket> findByMilestoneIdOrderByOrderAscIdAsc(
+      Long milestoneId);
+
+  long countByMilestoneId(
+      Long milestoneId);
+
+  @Query("""
+          SELECT COUNT(t)
+          FROM Ticket t
+          WHERE t.milestone.id = :milestoneId
+            AND UPPER(t.status.name) = 'DONE'
+      """)
+  long countCompletedByMilestoneId(
+      @Param("milestoneId") Long milestoneId);
 }

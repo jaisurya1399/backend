@@ -40,4 +40,5 @@ public interface ProjectUserRepository extends JpaRepository<ProjectUser, Long> 
         long countByProjectId(Long projectId);
 
         long countByUserId(Long userId);
+
 }

@@ -2,9 +2,14 @@ package com.projectmanagement.app.ticket;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.projectmanagement.app.epic.Epic;
+import com.projectmanagement.app.label.Label;
+import com.projectmanagement.app.milestone.Milestone;
 import com.projectmanagement.app.project.Project;
+import com.projectmanagement.app.sprint.Sprint;
 import com.projectmanagement.app.user.User;
 
 import jakarta.persistence.Column;
@@ -15,6 +20,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
@@ -92,6 +99,35 @@ public class Ticket {
     @JoinColumn(name = "epic_id", foreignKey = @ForeignKey(name = "tickets_epic_id_foreign"))
     private Epic epic;
 
+    // =========================================================
+    // SPRINT
+    // =========================================================
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "sprint_id", foreignKey = @ForeignKey(name = "tickets_sprint_id_foreign"))
+    private Sprint sprint;
+
+    // =========================================================
+    // MILESTONE
+    // =========================================================
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_id", foreignKey = @ForeignKey(name = "tickets_milestone_id_foreign"))
+    private Milestone milestone;
+
+    // =========================================================
+    // LABELS
+    // =========================================================
+
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "ticket_labels", joinColumns = @JoinColumn(name = "ticket_id", foreignKey = @ForeignKey(name = "ticket_labels_ticket_id_foreign")), inverseJoinColumns = @JoinColumn(name = "label_id", foreignKey = @ForeignKey(name = "ticket_labels_label_id_foreign")))
+    @Builder.Default
+    private Set<Label> labels = new HashSet<>();
+
+    // =========================================================
+    // CREATE
+    // =========================================================
+
     @PrePersist
     protected void onCreate() {
 
@@ -112,10 +148,19 @@ public class Ticket {
         if (estimation == null) {
             estimation = BigDecimal.ZERO;
         }
+
+        if (labels == null) {
+            labels = new HashSet<>();
+        }
     }
+
+    // =========================================================
+    // UPDATE
+    // =========================================================
 
     @PreUpdate
     protected void onUpdate() {
+
         updatedAt = LocalDateTime.now();
     }
 }
