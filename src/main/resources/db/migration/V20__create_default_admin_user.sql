@@ -9,18 +9,16 @@ INSERT INTO users (
     created_at,
     updated_at
 )
--- NOTE: default password is 'Admin@123' (BCrypt hash below).
--- Change this password immediately after first login in any real deployment.
 SELECT
-    'Admin',
-    'admin@example.com',
+    'Jai Surya',
+    'jaisurya1399@gmail.com',
     '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
     CURRENT_TIMESTAMP,
     CURRENT_TIMESTAMP
 WHERE NOT EXISTS (
     SELECT 1
     FROM users
-    WHERE email = 'admin@example.com'
+    WHERE email = 'jaisurya1399@gmail.com'
 );
 
 -- ============================================================
@@ -40,7 +38,7 @@ FROM roles r
 CROSS JOIN users u
 WHERE r.name = 'ADMIN'
   AND r.guard_name = 'web'
-  AND u.email = 'admin@example.com'
+  AND u.email = 'jaisurya1399@gmail.com'
   AND NOT EXISTS (
       SELECT 1
       FROM model_has_roles mhr
