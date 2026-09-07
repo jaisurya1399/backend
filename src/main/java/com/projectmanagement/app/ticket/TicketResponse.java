@@ -2,6 +2,7 @@ package com.projectmanagement.app.ticket;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Set;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -54,6 +55,19 @@ public class TicketResponse {
 
     private Long epicId;
     private String epicName;
+
+    private Long parentId;
+    private String parentCode;
+    private String parentName;
+    private long childCount;
+
+    private Long sprintId;
+    private String sprintName;
+
+    private Long milestoneId;
+    private String milestoneName;
+
+    private Set<Long> labelIds;
 
     private LocalDateTime deletedAt;
 

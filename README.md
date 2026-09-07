@@ -41,6 +41,22 @@ seed a default admin user:
 
 **Change this password immediately** if you deploy this anywhere beyond your own machine.
 
+## Workspace API
+
+Projects now belong to a workspace. Run Flyway before using the API; existing data is
+moved to a `default` workspace. Create a workspace with `POST /api/workspaces`, then
+include its `workspaceId` when creating or updating a project. Workspace owners/admins
+can manage members at `/api/workspaces/{workspaceId}/members`; ownership can be
+transferred with `POST /api/workspaces/{workspaceId}/ownership/{newOwnerId}`.
+
+Project members use one of three roles: `ADMIN`, `MEMBER`, or `VIEWER`. A `VIEWER`
+can read project issues, a `MEMBER` can create and edit issues, and an `ADMIN` (or
+the project owner) manages project settings, memberships, and destructive actions.
+
+Issues can be nested as sub-tasks by passing `parentId` in the ticket payload. Use
+`GET /api/tickets/project/{projectId}/root` for root issues and
+`GET /api/tickets/{ticketId}/children` for direct sub-tasks.
+
 ## Building
 
 ```bash

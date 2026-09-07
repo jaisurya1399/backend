@@ -1,11 +1,12 @@
 package com.projectmanagement.app.ticket;
 
 import java.math.BigDecimal;
+import java.util.Set;
 
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -49,7 +50,7 @@ public class TicketRequest {
     @Positive(message = "Ticket type ID must be positive")
     private Long typeId;
 
-    @Positive(message = "Order must be positive")
+    @PositiveOrZero(message = "Order cannot be negative")
     @Builder.Default
     private Integer order = 0;
 
@@ -57,10 +58,21 @@ public class TicketRequest {
     @Positive(message = "Priority ID must be positive")
     private Long priorityId;
 
-    @DecimalMin(value = "0.00", message = "Estimation cannot be negative")
+    @PositiveOrZero(message = "Estimation cannot be negative")
     @Builder.Default
     private BigDecimal estimation = BigDecimal.ZERO;
 
     @Positive(message = "Epic ID must be positive")
     private Long epicId;
+
+    @Positive(message = "Parent ticket ID must be positive")
+    private Long parentId;
+
+    @Positive(message = "Sprint ID must be positive")
+    private Long sprintId;
+
+    @Positive(message = "Milestone ID must be positive")
+    private Long milestoneId;
+
+    private Set<@NotNull(message = "Label IDs cannot contain null") @Positive(message = "Label IDs must be positive") Long> labelIds;
 }

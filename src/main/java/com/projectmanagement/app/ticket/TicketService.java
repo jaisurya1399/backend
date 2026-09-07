@@ -3,6 +3,8 @@ package com.projectmanagement.app.ticket;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.HashSet;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -11,10 +13,17 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.epic.Epic;
 import com.projectmanagement.app.epic.EpicRepository;
+import com.projectmanagement.app.label.Label;
+import com.projectmanagement.app.label.LabelRepository;
+import com.projectmanagement.app.milestone.Milestone;
+import com.projectmanagement.app.milestone.MilestoneRepository;
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.project.ProjectRepository;
+import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
+import com.projectmanagement.app.sprint.Sprint;
+import com.projectmanagement.app.sprint.SprintRepository;
 
 @Service
 @Transactional
@@ -27,6 +36,10 @@ public class TicketService {
         private final TicketTypeRepository ticketTypeRepository;
         private final TicketPriorityRepository ticketPriorityRepository;
         private final EpicRepository epicRepository;
+        private final SprintRepository sprintRepository;
+        private final MilestoneRepository milestoneRepository;
+        private final LabelRepository labelRepository;
+        private final ProjectAccessService projectAccessService;
 
         public TicketService(
                         TicketRepository ticketRepository,
@@ -35,7 +48,11 @@ public class TicketService {
                         TicketStatusRepository ticketStatusRepository,
                         TicketTypeRepository ticketTypeRepository,
                         TicketPriorityRepository ticketPriorityRepository,
-                        EpicRepository epicRepository) {
+                        EpicRepository epicRepository,
+                        SprintRepository sprintRepository,
+                        MilestoneRepository milestoneRepository,
+                        LabelRepository labelRepository,
+                        ProjectAccessService projectAccessService) {
 
                 this.ticketRepository = ticketRepository;
                 this.projectRepository = projectRepository;
@@ -44,6 +61,10 @@ public class TicketService {
                 this.ticketTypeRepository = ticketTypeRepository;
                 this.ticketPriorityRepository = ticketPriorityRepository;
                 this.epicRepository = epicRepository;
+                this.sprintRepository = sprintRepository;
+                this.milestoneRepository = milestoneRepository;
+                this.labelRepository = labelRepository;
+                this.projectAccessService = projectAccessService;
         }
 
         // ============================================================
@@ -55,6 +76,7 @@ public class TicketService {
 
                 return ticketRepository.findAll()
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -69,6 +91,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByDeletedAtIsNull()
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -83,6 +106,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByDeletedAtIsNotNull()
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -132,6 +156,7 @@ public class TicketService {
                                 .findByResponsibleIdAndDeletedAtIsNull(
                                                 currentUser.getId())
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -147,6 +172,7 @@ public class TicketService {
                                 .findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
+                projectAccessService.requireView(ticket.getProject());
 
                 return toResponse(ticket);
         }
@@ -162,6 +188,7 @@ public class TicketService {
                                 .findByCode(code)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with code: " + code));
+                projectAccessService.requireView(ticket.getProject());
 
                 return toResponse(ticket);
         }
@@ -174,9 +201,12 @@ public class TicketService {
         public List<TicketResponse> getByProject(
                         Long projectId) {
 
+                projectAccessService.requireView(getProject(projectId));
+
                 return ticketRepository
                                 .findByProjectIdOrderByOrderAsc(projectId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -189,12 +219,31 @@ public class TicketService {
         public List<TicketResponse> getActiveByProject(
                         Long projectId) {
 
+                projectAccessService.requireView(getProject(projectId));
+
                 return ticketRepository
                                 .findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(
                                                 projectId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getRootTicketsByProject(Long projectId) {
+                projectAccessService.requireView(getProject(projectId));
+                return ticketRepository.findByProjectIdAndParentIsNullAndDeletedAtIsNullOrderByOrderAscIdAsc(projectId)
+                                .stream().filter(this::canView).map(this::toResponse).toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getChildren(Long parentId) {
+                Ticket parent = ticketRepository.findById(parentId)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + parentId));
+                projectAccessService.requireView(parent.getProject());
+                return ticketRepository.findByParentIdAndDeletedAtIsNullOrderByOrderAscIdAsc(parentId)
+                                .stream().filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -208,6 +257,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByOwnerId(ownerId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -223,6 +273,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByResponsibleId(responsibleId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -238,6 +289,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByStatusId(statusId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -253,6 +305,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByTypeId(typeId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -268,6 +321,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByPriorityId(priorityId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -283,6 +337,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByEpicId(epicId)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -298,6 +353,7 @@ public class TicketService {
                 return ticketRepository
                                 .findByNameContainingIgnoreCase(name)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -311,11 +367,14 @@ public class TicketService {
                         Long projectId,
                         String name) {
 
+                projectAccessService.requireView(getProject(projectId));
+
                 return ticketRepository
                                 .findByProjectIdAndNameContainingIgnoreCase(
                                                 projectId,
                                                 name)
                                 .stream()
+                                .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -332,6 +391,8 @@ public class TicketService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Project not found with id: "
                                                                 + request.getProjectId()));
+                projectAccessService.requireEditor(project);
+                validateProjectActive(project);
 
                 User owner = userRepository
                                 .findById(request.getOwnerId())
@@ -357,18 +418,21 @@ public class TicketService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket status not found with id: "
                                                                 + request.getStatusId()));
+                validateStatusBelongsToProject(status, project);
 
                 TicketType type = ticketTypeRepository
                                 .findById(request.getTypeId())
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket type not found with id: "
                                                                 + request.getTypeId()));
+                validateTypeActive(type);
 
                 TicketPriority priority = ticketPriorityRepository
                                 .findById(request.getPriorityId())
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket priority not found with id: "
                                                                 + request.getPriorityId()));
+                validatePriorityActive(priority);
 
                 Epic epic = null;
 
@@ -384,6 +448,12 @@ public class TicketService {
                                         epic,
                                         project);
                 }
+
+                Ticket parent = resolveParent(request.getParentId(), project, null);
+
+                Sprint sprint = resolveSprint(request.getSprintId(), project);
+                Milestone milestone = resolveMilestone(request.getMilestoneId(), project);
+                Set<Label> labels = resolveLabels(request.getLabelIds(), project);
 
                 String code = request.getCode();
 
@@ -421,6 +491,10 @@ public class TicketService {
                                                                 ? request.getEstimation()
                                                                 : BigDecimal.ZERO)
                                 .epic(epic)
+                                .parent(parent)
+                                .sprint(sprint)
+                                .milestone(milestone)
+                                .labels(labels)
                                 .build();
 
                 Ticket saved = ticketRepository.save(ticket);
@@ -440,12 +514,15 @@ public class TicketService {
                                 .findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
+                projectAccessService.requireEditor(ticket.getProject());
 
                 Project project = projectRepository
                                 .findById(request.getProjectId())
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Project not found with id: "
                                                                 + request.getProjectId()));
+                projectAccessService.requireEditor(project);
+                validateProjectActive(project);
 
                 User owner = userRepository
                                 .findById(request.getOwnerId())
@@ -471,18 +548,21 @@ public class TicketService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket status not found with id: "
                                                                 + request.getStatusId()));
+                validateStatusBelongsToProject(status, project);
 
                 TicketType type = ticketTypeRepository
                                 .findById(request.getTypeId())
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket type not found with id: "
                                                                 + request.getTypeId()));
+                validateTypeActive(type);
 
                 TicketPriority priority = ticketPriorityRepository
                                 .findById(request.getPriorityId())
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket priority not found with id: "
                                                                 + request.getPriorityId()));
+                validatePriorityActive(priority);
 
                 Epic epic = null;
 
@@ -498,6 +578,12 @@ public class TicketService {
                                         epic,
                                         project);
                 }
+
+                Ticket parent = resolveParent(request.getParentId(), project, ticket.getId());
+
+                Sprint sprint = resolveSprint(request.getSprintId(), project);
+                Milestone milestone = resolveMilestone(request.getMilestoneId(), project);
+                Set<Label> labels = resolveLabels(request.getLabelIds(), project);
 
                 if (request.getCode() != null &&
                                 !request.getCode().isBlank()) {
@@ -538,6 +624,10 @@ public class TicketService {
                                                 : BigDecimal.ZERO);
 
                 ticket.setEpic(epic);
+                ticket.setParent(parent);
+                ticket.setSprint(sprint);
+                ticket.setMilestone(milestone);
+                ticket.setLabels(labels);
 
                 Ticket updated = ticketRepository.save(ticket);
 
@@ -554,6 +644,7 @@ public class TicketService {
                                 .findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
+                projectAccessService.requireManager(ticket.getProject());
 
                 ticket.setDeletedAt(LocalDateTime.now());
 
@@ -570,6 +661,7 @@ public class TicketService {
                                 .findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
+                projectAccessService.requireManager(ticket.getProject());
 
                 ticket.setDeletedAt(null);
 
@@ -583,18 +675,24 @@ public class TicketService {
 
         public void permanentDelete(Long id) {
 
-                if (!ticketRepository.existsById(id)) {
-
-                        throw new RuntimeException(
-                                        "Ticket not found with id: " + id);
-                }
-
-                ticketRepository.deleteById(id);
+                Ticket ticket = ticketRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
+                projectAccessService.requireManager(ticket.getProject());
+                ticketRepository.delete(ticket);
         }
 
         // ============================================================
         // GENERATE TICKET CODE
         // ============================================================
+
+        private Project getProject(Long projectId) {
+                return projectRepository.findById(projectId)
+                                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+        }
+
+        private boolean canView(Ticket ticket) {
+                return projectAccessService.canView(ticket.getProject());
+        }
 
         private String generateTicketCode(
                         Project project) {
@@ -631,6 +729,9 @@ public class TicketService {
                         Epic epic,
                         Project project) {
 
+                if (epic.getDeletedAt() != null) {
+                        throw new RuntimeException("Epic is deleted");
+                }
                 if (epic.getProject() == null ||
                                 !epic.getProject()
                                                 .getId()
@@ -639,6 +740,82 @@ public class TicketService {
                         throw new RuntimeException(
                                         "Epic does not belong to the selected project");
                 }
+        }
+
+        private void validateProjectActive(Project project) {
+                if (project.getDeletedAt() != null) {
+                        throw new RuntimeException("Project is deleted");
+                }
+        }
+
+        private void validateTypeActive(TicketType type) {
+                if (type.getDeletedAt() != null) {
+                        throw new RuntimeException("Ticket type is deleted");
+                }
+        }
+
+        private void validatePriorityActive(TicketPriority priority) {
+                if (priority.getDeletedAt() != null) {
+                        throw new RuntimeException("Ticket priority is deleted");
+                }
+        }
+
+        private void validateStatusBelongsToProject(TicketStatus status, Project project) {
+                if (status.getDeletedAt() != null) {
+                        throw new RuntimeException("Ticket status is deleted");
+                }
+                if (status.getProject() != null && !status.getProject().getId().equals(project.getId())) {
+                        throw new RuntimeException("Ticket status does not belong to the selected project");
+                }
+        }
+
+        private Sprint resolveSprint(Long sprintId, Project project) {
+                if (sprintId == null) return null;
+                Sprint sprint = sprintRepository.findByIdAndProjectId(sprintId, project.getId())
+                                .orElseThrow(() -> new RuntimeException("Sprint does not belong to the selected project"));
+                if (sprint.getStatus() == com.projectmanagement.app.sprint.SprintStatus.COMPLETED
+                                || sprint.getStatus() == com.projectmanagement.app.sprint.SprintStatus.CANCELLED) {
+                        throw new RuntimeException("Cannot add a ticket to a completed or cancelled sprint");
+                }
+                return sprint;
+        }
+
+        private Ticket resolveParent(Long parentId, Project project, Long ticketId) {
+                if (parentId == null) return null;
+                if (parentId.equals(ticketId)) throw new RuntimeException("A ticket cannot be its own parent");
+                Ticket parent = ticketRepository.findById(parentId)
+                                .filter(ticket -> ticket.getDeletedAt() == null)
+                                .orElseThrow(() -> new RuntimeException("Parent ticket not found"));
+                if (!parent.getProject().getId().equals(project.getId()))
+                        throw new RuntimeException("Parent ticket must belong to the same project");
+                if (ticketId != null && isDescendantOf(parent, ticketId))
+                        throw new RuntimeException("A ticket cannot be moved below one of its descendants");
+                return parent;
+        }
+
+        private boolean isDescendantOf(Ticket candidate, Long ancestorId) {
+                Ticket current = candidate;
+                while (current != null) {
+                        if (current.getId().equals(ancestorId)) return true;
+                        current = current.getParent();
+                }
+                return false;
+        }
+
+        private Milestone resolveMilestone(Long milestoneId, Project project) {
+                if (milestoneId == null) return null;
+                return milestoneRepository.findByIdAndProjectId(milestoneId, project.getId())
+                                .orElseThrow(() -> new RuntimeException("Milestone does not belong to the selected project"));
+        }
+
+        private Set<Label> resolveLabels(Set<Long> labelIds, Project project) {
+                Set<Label> labels = new HashSet<>();
+                if (labelIds == null || labelIds.isEmpty()) return labels;
+                for (Long labelId : labelIds) {
+                        labels.add(labelRepository.findByIdAndProjectId(labelId, project.getId())
+                                        .orElseThrow(() -> new RuntimeException("Label does not belong to the selected project: " + labelId)));
+                }
+                return labels;
         }
 
         // ============================================================
@@ -723,6 +900,17 @@ public class TicketService {
                         epicName = ticket.getEpic().getName();
                 }
 
+                Long parentId = ticket.getParent() == null ? null : ticket.getParent().getId();
+                String parentCode = ticket.getParent() == null ? null : ticket.getParent().getCode();
+                String parentName = ticket.getParent() == null ? null : ticket.getParent().getName();
+                long childCount = ticketRepository.countByParentIdAndDeletedAtIsNull(ticket.getId());
+
+                Long sprintId = ticket.getSprint() == null ? null : ticket.getSprint().getId();
+                String sprintName = ticket.getSprint() == null ? null : ticket.getSprint().getName();
+                Long milestoneId = ticket.getMilestone() == null ? null : ticket.getMilestone().getId();
+                String milestoneName = ticket.getMilestone() == null ? null : ticket.getMilestone().getName();
+                Set<Long> labelIds = ticket.getLabels().stream().map(Label::getId).collect(java.util.stream.Collectors.toSet());
+
                 return TicketResponse.builder()
                                 .id(ticket.getId())
                                 .name(ticket.getName())
@@ -760,6 +948,17 @@ public class TicketService {
 
                                 .epicId(epicId)
                                 .epicName(epicName)
+
+                                .parentId(parentId)
+                                .parentCode(parentCode)
+                                .parentName(parentName)
+                                .childCount(childCount)
+
+                                .sprintId(sprintId)
+                                .sprintName(sprintName)
+                                .milestoneId(milestoneId)
+                                .milestoneName(milestoneName)
+                                .labelIds(labelIds)
 
                                 .deletedAt(ticket.getDeletedAt())
                                 .createdAt(ticket.getCreatedAt())

@@ -1,9 +1,7 @@
 package com.projectmanagement.app.project;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,7 +23,6 @@ public class ProjectUserRequest {
     @Positive
     private Long projectId;
 
-    @NotBlank
-    @Size(max = 255)
-    private String role;
+    @NotNull
+    private ProjectRole role;
 }

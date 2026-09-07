@@ -99,6 +99,10 @@ public class Ticket {
     @JoinColumn(name = "epic_id", foreignKey = @ForeignKey(name = "tickets_epic_id_foreign"))
     private Epic epic;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id", foreignKey = @ForeignKey(name = "tickets_parent_id_foreign"))
+    private Ticket parent;
+
     // =========================================================
     // SPRINT
     // =========================================================

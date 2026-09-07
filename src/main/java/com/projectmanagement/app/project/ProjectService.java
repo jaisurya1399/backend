@@ -11,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
+import com.projectmanagement.app.workspace.Workspace;
+import com.projectmanagement.app.workspace.WorkspaceMemberRepository;
+import com.projectmanagement.app.workspace.WorkspaceRepository;
+import com.projectmanagement.app.workspace.WorkspaceRole;
 
 @Service
 public class ProjectService {
@@ -19,17 +23,26 @@ public class ProjectService {
         private final UserRepository userRepository;
         private final ProjectStatusRepository projectStatusRepository;
         private final CurrentUserService currentUserService;
+        private final WorkspaceRepository workspaceRepository;
+        private final WorkspaceMemberRepository workspaceMemberRepository;
+        private final ProjectAccessService projectAccessService;
 
         public ProjectService(
                         ProjectRepository projectRepository,
                         UserRepository userRepository,
                         ProjectStatusRepository projectStatusRepository,
-                        CurrentUserService currentUserService) {
+                        CurrentUserService currentUserService,
+                        WorkspaceRepository workspaceRepository,
+                        WorkspaceMemberRepository workspaceMemberRepository,
+                        ProjectAccessService projectAccessService) {
 
                 this.projectRepository = projectRepository;
                 this.userRepository = userRepository;
                 this.projectStatusRepository = projectStatusRepository;
                 this.currentUserService = currentUserService;
+                this.workspaceRepository = workspaceRepository;
+                this.workspaceMemberRepository = workspaceMemberRepository;
+                this.projectAccessService = projectAccessService;
         }
 
         // ============================================================
@@ -121,25 +134,7 @@ public class ProjectService {
 
                 Project project = getProjectEntityById(id);
 
-                // --------------------------------------------------------
-                // ADMIN can access any project
-                // --------------------------------------------------------
-
-                if (!isAdmin(authentication)) {
-
-                        Long userId = currentUserService.getCurrentUserId();
-
-                        boolean hasAccess = projectRepository
-                                        .existsByIdAndUserCanAccess(
-                                                        id,
-                                                        userId);
-
-                        if (!hasAccess) {
-
-                                throw new RuntimeException(
-                                                "You do not have access to this project");
-                        }
-                }
+                projectAccessService.requireView(project);
 
                 return toResponse(project);
         }
@@ -271,6 +266,9 @@ public class ProjectService {
                 }
 
                 User owner = getUserById(request.getOwnerId());
+                Workspace workspace = getActiveWorkspace(request.getWorkspaceId());
+                validateWorkspaceManager(workspace.getId());
+                validateWorkspaceMember(workspace.getId(), owner.getId());
 
                 ProjectStatus status = getStatusById(request.getStatusId());
 
@@ -278,6 +276,7 @@ public class ProjectService {
                                 .name(normalizedName)
                                 .description(request.getDescription())
                                 .owner(owner)
+                                .workspace(workspace)
                                 .status(status)
                                 .ticketPrefix(normalizedPrefix)
                                 .statusType(
@@ -305,6 +304,11 @@ public class ProjectService {
                 validateRequest(request);
 
                 Project project = getProjectEntityById(id);
+                projectAccessService.requireManager(project);
+
+                if (!project.getWorkspace().getId().equals(request.getWorkspaceId())) {
+                        throw new RuntimeException("Project workspace cannot be changed");
+                }
 
                 String normalizedName = request.getName().trim();
 
@@ -338,6 +342,7 @@ public class ProjectService {
                 }
 
                 User owner = getUserById(request.getOwnerId());
+                validateWorkspaceMember(project.getWorkspace().getId(), owner.getId());
 
                 ProjectStatus status = getStatusById(request.getStatusId());
 
@@ -370,6 +375,7 @@ public class ProjectService {
                 validateId(id);
 
                 Project project = getProjectEntityById(id);
+                projectAccessService.requireManager(project);
 
                 project.setDeletedAt(
                                 LocalDateTime.now());
@@ -387,6 +393,7 @@ public class ProjectService {
                 validateId(id);
 
                 Project project = getProjectEntityById(id);
+                projectAccessService.requireManager(project);
 
                 project.setDeletedAt(null);
 
@@ -403,6 +410,7 @@ public class ProjectService {
                 validateId(id);
 
                 Project project = getProjectEntityById(id);
+                projectAccessService.requireManager(project);
 
                 projectRepository.delete(project);
         }
@@ -433,6 +441,32 @@ public class ProjectService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "User not found with id: "
                                                                 + userId));
+        }
+
+        private Workspace getActiveWorkspace(Long workspaceId) {
+                return workspaceRepository.findById(workspaceId)
+                                .filter(workspace -> workspace.getDeletedAt() == null)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Workspace not found with id: " + workspaceId));
+        }
+
+        private void validateWorkspaceMember(Long workspaceId, Long userId) {
+                if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)) {
+                        throw new RuntimeException("Project owner must be a member of the workspace");
+                }
+        }
+
+        private void validateWorkspaceManager(Long workspaceId) {
+                if (isAdmin(SecurityContextHolder.getContext().getAuthentication())) {
+                        return;
+                }
+                Long currentUserId = currentUserService.getCurrentUserId();
+                WorkspaceRole role = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, currentUserId)
+                                .map(member -> member.getRole())
+                                .orElseThrow(() -> new RuntimeException("You do not have access to this workspace"));
+                if (role != WorkspaceRole.OWNER && role != WorkspaceRole.ADMIN) {
+                        throw new RuntimeException("Workspace admin access is required to create a project");
+                }
         }
 
         // ============================================================
@@ -487,6 +521,10 @@ public class ProjectService {
                                 .name(project.getName())
                                 .description(project.getDescription())
 
+                                .workspaceId(project.getWorkspace().getId())
+                                .workspaceName(project.getWorkspace().getName())
+                                .workspaceSlug(project.getWorkspace().getSlug())
+
                                 .ownerId(ownerId)
                                 .ownerName(ownerName)
                                 .ownerEmail(ownerEmail)
@@ -534,6 +572,10 @@ public class ProjectService {
 
                 validateUserId(
                                 request.getOwnerId());
+
+                if (request.getWorkspaceId() == null || request.getWorkspaceId() <= 0) {
+                        throw new IllegalArgumentException("Workspace ID must be greater than zero");
+                }
 
                 validateStatusId(
                                 request.getStatusId());

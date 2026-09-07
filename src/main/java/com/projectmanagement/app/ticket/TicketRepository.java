@@ -195,6 +195,12 @@ public interface TicketRepository
   List<Ticket> findByProjectIdAndSprintIsNullOrderByOrderAsc(
       Long projectId);
 
+  List<Ticket> findByParentIdAndDeletedAtIsNullOrderByOrderAscIdAsc(Long parentId);
+
+  List<Ticket> findByProjectIdAndParentIsNullAndDeletedAtIsNullOrderByOrderAscIdAsc(Long projectId);
+
+  long countByParentIdAndDeletedAtIsNull(Long parentId);
+
   long countBySprintId(Long sprintId);
 
   long countByProjectIdAndSprintIsNull(Long projectId);

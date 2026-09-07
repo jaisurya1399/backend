@@ -120,6 +120,18 @@ public class TicketController {
                                 ticketService.getActiveByProject(projectId));
         }
 
+        @GetMapping("/project/{projectId}/root")
+        @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
+        public ResponseEntity<List<TicketResponse>> getRootTicketsByProject(@PathVariable Long projectId) {
+                return ResponseEntity.ok(ticketService.getRootTicketsByProject(projectId));
+        }
+
+        @GetMapping("/{id:\\d+}/children")
+        @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
+        public ResponseEntity<List<TicketResponse>> getChildren(@PathVariable Long id) {
+                return ResponseEntity.ok(ticketService.getChildren(id));
+        }
+
         // ============================================================
         // GET TICKETS BY OWNER
         // ============================================================

@@ -47,7 +47,7 @@ public class ProjectUser {
     @JoinColumn(name = "project_id", nullable = false, foreignKey = @ForeignKey(name = "project_users_project_id_foreign"))
     private Project project;
 
-    @Column(name = "role", nullable = false, length = 255)
+    @Column(name = "role", nullable = false, length = 20)
     private String role;
 
     @Column(name = "created_at")

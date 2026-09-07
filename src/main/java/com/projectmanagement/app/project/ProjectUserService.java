@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
+import com.projectmanagement.app.workspace.WorkspaceMemberRepository;
 
 @Service
 @Transactional
@@ -15,14 +16,20 @@ public class ProjectUserService {
         private final ProjectUserRepository projectUserRepository;
         private final UserRepository userRepository;
         private final ProjectRepository projectRepository;
+        private final ProjectAccessService projectAccessService;
+        private final WorkspaceMemberRepository workspaceMemberRepository;
 
         public ProjectUserService(
                         ProjectUserRepository projectUserRepository,
                         UserRepository userRepository,
-                        ProjectRepository projectRepository) {
+                        ProjectRepository projectRepository,
+                        ProjectAccessService projectAccessService,
+                        WorkspaceMemberRepository workspaceMemberRepository) {
                 this.projectUserRepository = projectUserRepository;
                 this.userRepository = userRepository;
                 this.projectRepository = projectRepository;
+                this.projectAccessService = projectAccessService;
+                this.workspaceMemberRepository = workspaceMemberRepository;
         }
 
         // ---------------------------------------------------------
@@ -138,11 +145,13 @@ public class ProjectUserService {
                                                 () -> new RuntimeException(
                                                                 "Project not found with id: "
                                                                                 + request.getProjectId()));
+                projectAccessService.requireManager(project);
+                validateWorkspaceMembership(project, user.getId());
 
                 ProjectUser projectUser = ProjectUser.builder()
                                 .user(user)
                                 .project(project)
-                                .role(request.getRole())
+                                .role(request.getRole().name())
                                 .build();
 
                 return toResponse(
@@ -160,6 +169,7 @@ public class ProjectUserService {
                 ProjectUser projectUser = projectUserRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Project user not found with id: " + id));
+                projectAccessService.requireManager(projectUser.getProject());
 
                 validateUser(request.getUserId());
                 validateProject(request.getProjectId());
@@ -191,10 +201,12 @@ public class ProjectUserService {
                                                 () -> new RuntimeException(
                                                                 "Project not found with id: "
                                                                                 + request.getProjectId()));
+                projectAccessService.requireManager(project);
+                validateWorkspaceMembership(project, user.getId());
 
                 projectUser.setUser(user);
                 projectUser.setProject(project);
-                projectUser.setRole(request.getRole());
+                projectUser.setRole(request.getRole().name());
 
                 return toResponse(
                                 projectUserRepository.save(projectUser));
@@ -206,12 +218,10 @@ public class ProjectUserService {
 
         public void deleteProjectUser(Long id) {
 
-                if (!projectUserRepository.existsById(id)) {
-                        throw new RuntimeException(
-                                        "Project user not found with id: " + id);
-                }
-
-                projectUserRepository.deleteById(id);
+                ProjectUser projectUser = projectUserRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException("Project user not found with id: " + id));
+                projectAccessService.requireManager(projectUser.getProject());
+                projectUserRepository.delete(projectUser);
         }
 
         // ---------------------------------------------------------
@@ -221,6 +231,8 @@ public class ProjectUserService {
         public void deleteProjectUsersByProject(Long projectId) {
 
                 validateProject(projectId);
+
+                projectAccessService.requireManager(projectRepository.getReferenceById(projectId));
 
                 projectUserRepository.deleteByProjectId(projectId);
         }
@@ -269,6 +281,12 @@ public class ProjectUserService {
                 if (!projectRepository.existsById(projectId)) {
                         throw new RuntimeException(
                                         "Project not found with id: " + projectId);
+                }
+        }
+
+        private void validateWorkspaceMembership(Project project, Long userId) {
+                if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(project.getWorkspace().getId(), userId)) {
+                        throw new RuntimeException("Project member must belong to the workspace");
                 }
         }
 
