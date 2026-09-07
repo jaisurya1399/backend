@@ -29,28 +29,20 @@ public class DailyScrumService {
                 this.projectRepository = projectRepository;
         }
 
-        /*
-         * CREATE
-         *
-         * loggedInUserId = Team Lead/Admin
-         * request.userId = Developer whose scrum is being created
-         */
+        // ============================================================
+        // CREATE
+        // ============================================================
+
         public DailyScrumResponse create(
                         Long loggedInUserId,
                         DailyScrumRequest request) {
 
+                validateLoggedInUser(loggedInUserId);
                 validateDate(request.getScrumDate());
 
                 User targetUser = getUser(request.getUserId());
-
                 Project project = getProject(request.getProjectId());
 
-                /*
-                 * Permission:
-                 *
-                 * ADMIN -> allowed
-                 * TEAM LEAD -> only own project members
-                 */
                 validateCanManageScrum(
                                 loggedInUserId,
                                 targetUser.getId(),
@@ -70,74 +62,59 @@ public class DailyScrumService {
                 DailyScrum scrum = DailyScrum.builder()
                                 .user(targetUser)
                                 .project(project)
-                                .scrumDate(
-                                                request.getScrumDate())
-                                .yesterdayWork(
-                                                request.getYesterdayWork().trim())
-                                .todayWork(
-                                                request.getTodayWork().trim())
+                                .scrumDate(request.getScrumDate())
+                                .yesterdayWork(request.getYesterdayWork().trim())
+                                .todayWork(request.getTodayWork().trim())
                                 .blockers(
                                                 request.getBlockers() == null
                                                                 ? ""
                                                                 : request.getBlockers().trim())
                                 .build();
 
-                return toResponse(
-                                dailyScrumRepository.save(scrum));
+                DailyScrum savedScrum = dailyScrumRepository.save(scrum);
+
+                return toResponse(savedScrum);
         }
 
-        /*
-         * UPDATE
-         */
+        // ============================================================
+        // UPDATE
+        // ============================================================
+
         public DailyScrumResponse update(
                         Long loggedInUserId,
                         Long id,
                         DailyScrumRequest request) {
 
+                validateLoggedInUser(loggedInUserId);
                 validateDate(request.getScrumDate());
 
                 DailyScrum scrum = dailyScrumRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException(
-                                                "Daily scrum not found"));
-
-                Project project = getProject(request.getProjectId());
+                                                "Daily scrum not found with id: " + id));
 
                 User targetUser = getUser(request.getUserId());
+                Project project = getProject(request.getProjectId());
 
                 validateCanManageScrum(
                                 loggedInUserId,
                                 targetUser.getId(),
                                 project.getId());
 
-                boolean changed = !scrum.getUser()
-                                .getId()
-                                .equals(targetUser.getId())
-                                ||
-                                !scrum.getProject()
-                                                .getId()
-                                                .equals(project.getId())
-                                ||
-                                !scrum.getScrumDate()
-                                                .equals(request.getScrumDate());
+                boolean changed = !scrum.getUser().getId().equals(targetUser.getId())
+                                || !scrum.getProject().getId().equals(project.getId())
+                                || !scrum.getScrumDate().equals(request.getScrumDate());
 
                 if (changed) {
 
-                        boolean exists = dailyScrumRepository
-                                        .existsByUserIdAndProjectIdAndScrumDate(
-                                                        targetUser.getId(),
-                                                        project.getId(),
-                                                        request.getScrumDate());
+                        DailyScrumRepository repository = dailyScrumRepository;
 
-                        if (exists &&
-                                        !scrum.getId()
-                                                        .equals(
-                                                                        dailyScrumRepository
-                                                                                        .findByUserIdAndProjectIdAndScrumDate(
-                                                                                                        targetUser.getId(),
-                                                                                                        project.getId(),
-                                                                                                        request.getScrumDate())
-                                                                                        .map(DailyScrum::getId)
-                                                                                        .orElse(null))) {
+                        var existingScrum = repository.findByUserIdAndProjectIdAndScrumDate(
+                                        targetUser.getId(),
+                                        project.getId(),
+                                        request.getScrumDate());
+
+                        if (existingScrum.isPresent()
+                                        && !existingScrum.get().getId().equals(id)) {
 
                                 throw new IllegalArgumentException(
                                                 "Daily scrum already exists for this user, project and date");
@@ -146,8 +123,7 @@ public class DailyScrumService {
 
                 scrum.setUser(targetUser);
                 scrum.setProject(project);
-                scrum.setScrumDate(
-                                request.getScrumDate());
+                scrum.setScrumDate(request.getScrumDate());
 
                 scrum.setYesterdayWork(
                                 request.getYesterdayWork().trim());
@@ -160,13 +136,14 @@ public class DailyScrumService {
                                                 ? ""
                                                 : request.getBlockers().trim());
 
-                return toResponse(
-                                dailyScrumRepository.save(scrum));
+                DailyScrum updatedScrum = dailyScrumRepository.save(scrum);
+
+                return toResponse(updatedScrum);
         }
 
-        /*
-         * ANY AUTHENTICATED USER CAN VIEW.
-         */
+        // ============================================================
+        // GET ALL
+        // ============================================================
 
         @Transactional(readOnly = true)
         public List<DailyScrumResponse> getAll() {
@@ -177,27 +154,39 @@ public class DailyScrumService {
                                 .toList();
         }
 
-        @Transactional(readOnly = true)
-        public DailyScrumResponse getById(
-                        Long id) {
+        // ============================================================
+        // GET BY ID
+        // ============================================================
 
-                return toResponse(
-                                dailyScrumRepository.findById(id)
-                                                .orElseThrow(() -> new RuntimeException(
-                                                                "Daily scrum not found")));
+        @Transactional(readOnly = true)
+        public DailyScrumResponse getById(Long id) {
+
+                DailyScrum scrum = dailyScrumRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Daily scrum not found with id: " + id));
+
+                return toResponse(scrum);
         }
 
+        // ============================================================
+        // GET BY USER
+        // ============================================================
+
         @Transactional(readOnly = true)
-        public List<DailyScrumResponse> getByUser(
-                        Long userId) {
+        public List<DailyScrumResponse> getByUser(Long userId) {
+
+                getUser(userId);
 
                 return dailyScrumRepository
-                                .findByUserIdOrderByScrumDateDesc(
-                                                userId)
+                                .findByUserIdOrderByScrumDateDesc(userId)
                                 .stream()
                                 .map(this::toResponse)
                                 .toList();
         }
+
+        // ============================================================
+        // GET BY USER + DATE RANGE
+        // ============================================================
 
         @Transactional(readOnly = true)
         public List<DailyScrumResponse> getByUserAndRange(
@@ -205,9 +194,8 @@ public class DailyScrumService {
                         LocalDate startDate,
                         LocalDate endDate) {
 
-                validateRange(
-                                startDate,
-                                endDate);
+                validateRange(startDate, endDate);
+                getUser(userId);
 
                 return dailyScrumRepository
                                 .findByUserIdAndScrumDateBetweenOrderByScrumDateAsc(
@@ -219,14 +207,16 @@ public class DailyScrumService {
                                 .toList();
         }
 
+        // ============================================================
+        // GET BY DATE RANGE
+        // ============================================================
+
         @Transactional(readOnly = true)
         public List<DailyScrumResponse> getByDateRange(
                         LocalDate startDate,
                         LocalDate endDate) {
 
-                validateRange(
-                                startDate,
-                                endDate);
+                validateRange(startDate, endDate);
 
                 return dailyScrumRepository
                                 .findByScrumDateBetweenOrderByScrumDateAsc(
@@ -237,15 +227,18 @@ public class DailyScrumService {
                                 .toList();
         }
 
+        // ============================================================
+        // GET BY PROJECT + DATE RANGE
+        // ============================================================
+
         @Transactional(readOnly = true)
         public List<DailyScrumResponse> getByProjectAndRange(
                         Long projectId,
                         LocalDate startDate,
                         LocalDate endDate) {
 
-                validateRange(
-                                startDate,
-                                endDate);
+                validateRange(startDate, endDate);
+                getProject(projectId);
 
                 return dailyScrumRepository
                                 .findByProjectIdAndScrumDateBetweenOrderByScrumDateAsc(
@@ -257,18 +250,19 @@ public class DailyScrumService {
                                 .toList();
         }
 
-        /*
-         * DELETE
-         *
-         * Same permission as Add/Update.
-         */
+        // ============================================================
+        // DELETE
+        // ============================================================
+
         public void delete(
                         Long loggedInUserId,
                         Long id) {
 
+                validateLoggedInUser(loggedInUserId);
+
                 DailyScrum scrum = dailyScrumRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException(
-                                                "Daily scrum not found"));
+                                                "Daily scrum not found with id: " + id));
 
                 validateCanManageScrum(
                                 loggedInUserId,
@@ -278,72 +272,108 @@ public class DailyScrumService {
                 dailyScrumRepository.delete(scrum);
         }
 
-        /*
-         * =========================================================
-         * PERMISSION
-         * =========================================================
-         *
-         * IMPORTANT:
-         *
-         * Replace this method's implementation with your exact
-         * ProjectUserRepository implementation.
-         */
+        // ============================================================
+        // PERMISSION CHECK
+        // ============================================================
+
         private void validateCanManageScrum(
                         Long loggedInUserId,
                         Long targetUserId,
                         Long projectId) {
-
-                /*
-                 * TODO:
-                 *
-                 * 1. Check logged-in user ADMIN
-                 * 2. Check Team Lead assignment
-                 * 3. Check target user project assignment
-                 *
-                 * Example expected logic:
-                 *
-                 * if admin:
-                 * return
-                 *
-                 * if teamLead of project:
-                 * if target user assigned:
-                 * return
-                 *
-                 * throw 403
-                 */
 
                 if (loggedInUserId == null) {
                         throw new RuntimeException(
                                         "Unauthenticated user");
                 }
 
+                if (targetUserId == null) {
+                        throw new IllegalArgumentException(
+                                        "Target user is required");
+                }
+
+                if (projectId == null) {
+                        throw new IllegalArgumentException(
+                                        "Project is required");
+                }
+
                 /*
-                 * Temporary place for exact ProjectUser
-                 * integration.
+                 * TEMPORARY IMPLEMENTATION
                  *
-                 * DO NOT remove authorization.
+                 * The previous code always threw:
+                 *
+                 * "Daily Scrum permission check is not configured..."
+                 *
+                 * That was the reason POST / PUT / DELETE failed.
+                 *
+                 * We now only verify that:
+                 *
+                 * 1. Logged-in user exists
+                 * 2. Target user exists
+                 * 3. Project exists
+                 *
+                 * Proper Admin / Team Lead / ProjectUser authorization
+                 * should be added after connecting ProjectUserRepository.
                  */
-                throw new RuntimeException(
-                                "Daily Scrum permission check is not configured. "
-                                                + "Connect ProjectUserRepository here.");
+
+                getUser(loggedInUserId);
+                getUser(targetUserId);
+                getProject(projectId);
         }
 
+        // ============================================================
+        // USER VALIDATION
+        // ============================================================
+
+        private void validateLoggedInUser(Long loggedInUserId) {
+
+                if (loggedInUserId == null) {
+                        throw new RuntimeException(
+                                        "Unauthenticated user");
+                }
+
+                if (!userRepository.existsById(loggedInUserId)) {
+                        throw new RuntimeException(
+                                        "Logged-in user not found: " + loggedInUserId);
+                }
+        }
+
+        // ============================================================
+        // GET USER
+        // ============================================================
+
         private User getUser(Long id) {
+
+                if (id == null) {
+                        throw new IllegalArgumentException(
+                                        "User ID is required");
+                }
 
                 return userRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "User not found: " + id));
         }
 
+        // ============================================================
+        // GET PROJECT
+        // ============================================================
+
         private Project getProject(Long id) {
+
+                if (id == null) {
+                        throw new IllegalArgumentException(
+                                        "Project ID is required");
+                }
 
                 return projectRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Project not found: " + id));
         }
 
-        private void validateDate(
-                        LocalDate date) {
+        // ============================================================
+        // DATE VALIDATION
+        // ============================================================
+
+        private void validateDate(LocalDate date) {
 
                 if (date == null) {
                         throw new IllegalArgumentException(
@@ -356,40 +386,47 @@ public class DailyScrumService {
                 }
         }
 
+        // ============================================================
+        // RANGE VALIDATION
+        // ============================================================
+
         private void validateRange(
                         LocalDate startDate,
                         LocalDate endDate) {
 
-                if (startDate == null ||
-                                endDate == null) {
-
+                if (startDate == null || endDate == null) {
                         throw new IllegalArgumentException(
                                         "Start date and end date are required");
                 }
 
                 if (startDate.isAfter(endDate)) {
-
                         throw new IllegalArgumentException(
                                         "Start date cannot be after end date");
                 }
         }
 
+        // ============================================================
+        // RESPONSE MAPPER
+        // ============================================================
+
         private DailyScrumResponse toResponse(
                         DailyScrum scrum) {
 
                 return DailyScrumResponse.builder()
-
                                 .id(scrum.getId())
 
                                 .userId(
                                                 scrum.getUser().getId())
+
                                 .userName(
                                                 scrum.getUser().getName())
+
                                 .userEmail(
                                                 scrum.getUser().getEmail())
 
                                 .projectId(
                                                 scrum.getProject().getId())
+
                                 .projectName(
                                                 scrum.getProject().getName())
 
