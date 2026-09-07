@@ -81,6 +81,9 @@ Project reporting is available at `GET /api/projects/{projectId}/analytics`. It
 returns issue health, estimate completion, assignee workload, average lead/cycle
 time in hours, and completed-sprint velocity.
 
+See [API.md](API.md) for the endpoint index, authentication convention, errors,
+and production environment variables.
+
 ## Building
 
 ```bash

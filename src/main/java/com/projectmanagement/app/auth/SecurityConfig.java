@@ -1,9 +1,11 @@
 package com.projectmanagement.app.auth;
 
 import java.util.List;
+import java.util.Arrays;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -30,6 +32,9 @@ public class SecurityConfig {
         private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
         private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
+        @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+        private String allowedOrigins;
+
         public SecurityConfig(
                         JwtAuthenticationFilter jwtAuthenticationFilter,
                         CustomUserDetailsService userDetailsService,
@@ -47,6 +52,12 @@ public class SecurityConfig {
 
                 http
                                 .csrf(csrf -> csrf.disable())
+
+                                .headers(headers -> headers
+                                                .contentTypeOptions(contentType -> {})
+                                                .frameOptions(frame -> frame.sameOrigin())
+                                                .referrerPolicy(referrer -> referrer.policy(
+                                                                org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
 
                                 .cors(cors -> cors.configurationSource(
                                                 corsConfigurationSource()))
@@ -109,10 +120,8 @@ public class SecurityConfig {
 
                 CorsConfiguration configuration = new CorsConfiguration();
 
-                configuration.setAllowedOrigins(
-                                List.of(
-                                                "http://localhost:5173",
-                                                "http://localhost:3000"));
+                configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
+                                .map(String::trim).filter(origin -> !origin.isEmpty()).toList());
 
                 configuration.setAllowedMethods(
                                 List.of(
