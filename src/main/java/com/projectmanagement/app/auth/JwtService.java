@@ -1,6 +1,7 @@
 package com.projectmanagement.app.auth;
 
 import java.util.Date;
+import java.util.UUID;
 import java.util.function.Function;
 
 import javax.crypto.SecretKey;
@@ -43,6 +44,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(username)
                 .issuer(issuer)
+                .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(getSigningKey())
@@ -59,6 +61,10 @@ public class JwtService {
         return extractClaim(
                 token,
                 Claims::getExpiration);
+    }
+
+    public String extractTokenId(String token) {
+        return extractClaim(token, Claims::getId);
     }
 
     public <T> T extractClaim(
