@@ -34,6 +34,7 @@ public class TicketResponse {
     private Long statusId;
     private String statusName;
     private String statusColor;
+    private TicketStatusCategory statusCategory;
 
     private Long projectId;
     private String projectName;
@@ -70,6 +71,8 @@ public class TicketResponse {
     private Set<Long> labelIds;
 
     private LocalDateTime deletedAt;
+
+    private LocalDateTime resolvedAt;
 
     private LocalDateTime createdAt;
 

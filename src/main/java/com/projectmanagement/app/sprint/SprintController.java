@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.projectmanagement.app.ticket.Ticket;
+import com.projectmanagement.app.auth.CurrentUserService;
 
 import jakarta.validation.Valid;
 
@@ -23,10 +24,13 @@ import jakarta.validation.Valid;
 public class SprintController {
 
     private final SprintService sprintService;
+    private final CurrentUserService currentUserService;
 
     public SprintController(
-            SprintService sprintService) {
+            SprintService sprintService,
+            CurrentUserService currentUserService) {
         this.sprintService = sprintService;
+        this.currentUserService = currentUserService;
     }
 
     // =========================================================
@@ -270,33 +274,6 @@ public class SprintController {
 
     private Long getUserId(
             Authentication authentication) {
-
-        if (authentication == null) {
-
-            throw new RuntimeException(
-                    "Authentication required");
-        }
-
-        /*
-         * IMPORTANT:
-         *
-         * Replace this only if your existing
-         * Authentication principal exposes user ID
-         * differently.
-         *
-         * If authentication.getName() already returns
-         * user ID, this works directly.
-         */
-
-        try {
-
-            return Long.valueOf(
-                    authentication.getName());
-
-        } catch (NumberFormatException e) {
-
-            throw new RuntimeException(
-                    "Unable to determine authenticated user ID");
-        }
+        return currentUserService.getCurrentUserId();
     }
 }

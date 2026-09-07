@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import com.projectmanagement.app.project.Project;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
@@ -50,6 +52,11 @@ public class TicketStatus {
     @Builder.Default
     private Integer order = 1;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category", nullable = false, length = 20)
+    @Builder.Default
+    private TicketStatusCategory category = TicketStatusCategory.TODO;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "project_id", foreignKey = @ForeignKey(name = "ticket_statuses_project_id_foreign"))
     private Project project;
@@ -86,6 +93,10 @@ public class TicketStatus {
 
         if (order == null) {
             order = 1;
+        }
+
+        if (category == null) {
+            category = TicketStatusCategory.TODO;
         }
     }
 

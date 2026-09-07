@@ -63,6 +63,9 @@ public class Ticket {
     @JoinColumn(name = "status_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_status_id_foreign"))
     private TicketStatus status;
 
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_project_id_foreign"))
     private Project project;

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -124,6 +125,12 @@ public class TicketController {
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getRootTicketsByProject(@PathVariable Long projectId) {
                 return ResponseEntity.ok(ticketService.getRootTicketsByProject(projectId));
+        }
+
+        @GetMapping("/project/{projectId}/board")
+        @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
+        public ResponseEntity<List<BoardColumnResponse>> getBoard(@PathVariable Long projectId) {
+                return ResponseEntity.ok(ticketService.getBoard(projectId));
         }
 
         @GetMapping("/{id:\\d+}/children")
@@ -239,6 +246,12 @@ public class TicketController {
                                                 keyword));
         }
 
+        @GetMapping("/project/{projectId}/filter")
+        @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
+        public ResponseEntity<TicketPageResponse> filter(@PathVariable Long projectId, @Valid @ModelAttribute TicketFilterRequest filter) {
+                return ResponseEntity.ok(ticketService.filter(projectId, filter));
+        }
+
         // ============================================================
         // GET TICKET BY ID
         // ============================================================
@@ -286,6 +299,18 @@ public class TicketController {
 
                 return ResponseEntity.ok(
                                 ticketService.update(id, request));
+        }
+
+        @PutMapping("/{id:\\d+}/transition")
+        @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
+        public ResponseEntity<TicketResponse> transition(@PathVariable Long id, @Valid @RequestBody TicketTransitionRequest request) {
+                return ResponseEntity.ok(ticketService.transition(id, request));
+        }
+
+        @PutMapping("/project/{projectId}/plan")
+        @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
+        public ResponseEntity<List<TicketResponse>> plan(@PathVariable Long projectId, @Valid @RequestBody TicketPlanningRequest request) {
+                return ResponseEntity.ok(ticketService.plan(projectId, request));
         }
 
         // ============================================================

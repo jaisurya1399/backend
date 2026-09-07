@@ -13,27 +13,18 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class TicketStatusResponse {
-
+public class TicketSavedViewResponse {
     private Long id;
-
-    private String name;
-
-    private String color;
-
-    private Boolean isDefault;
-
-    private Integer order;
-
-    private TicketStatusCategory category;
-
     private Long projectId;
-
-    private String projectName;
-
-    private LocalDateTime deletedAt;
-
+    private String name;
+    private String q;
+    private Long statusId;
+    private Long priorityId;
+    private Long responsibleId;
+    private Long sprintId;
+    private Long epicId;
+    private Long labelId;
+    private Boolean rootOnly;
     private LocalDateTime createdAt;
-
     private LocalDateTime updatedAt;
 }

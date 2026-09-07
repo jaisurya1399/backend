@@ -243,6 +243,7 @@ public class TicketStatusService {
                                                 request.getOrder() != null
                                                                 ? request.getOrder()
                                                                 : 1)
+                                .category(request.getCategory())
                                 .project(project)
                                 .build();
 
@@ -301,6 +302,7 @@ public class TicketStatusService {
                                 request.getOrder() != null
                                                 ? request.getOrder()
                                                 : 1);
+                status.setCategory(request.getCategory());
 
                 status.setProject(project);
 
@@ -544,6 +546,7 @@ public class TicketStatusService {
                                 .color(status.getColor())
                                 .isDefault(status.getIsDefault())
                                 .order(status.getOrder())
+                                .category(status.getCategory())
                                 .projectId(projectId)
                                 .projectName(projectName)
                                 .deletedAt(status.getDeletedAt())

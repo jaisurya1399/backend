@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -204,6 +206,36 @@ public interface TicketRepository
   long countBySprintId(Long sprintId);
 
   long countByProjectIdAndSprintIsNull(Long projectId);
+
+  @Query(value = """
+      SELECT DISTINCT t FROM Ticket t LEFT JOIN t.labels l
+      WHERE t.project.id = :projectId AND t.deletedAt IS NULL
+      AND (:q IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
+           OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%')))
+      AND (:statusId IS NULL OR t.status.id = :statusId)
+      AND (:priorityId IS NULL OR t.priority.id = :priorityId)
+      AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
+      AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
+      AND (:epicId IS NULL OR t.epic.id = :epicId)
+      AND (:labelId IS NULL OR l.id = :labelId)
+      AND (:rootOnly = false OR t.parent IS NULL)
+      """, countQuery = """
+      SELECT COUNT(DISTINCT t) FROM Ticket t LEFT JOIN t.labels l
+      WHERE t.project.id = :projectId AND t.deletedAt IS NULL
+      AND (:q IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
+           OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%')))
+      AND (:statusId IS NULL OR t.status.id = :statusId)
+      AND (:priorityId IS NULL OR t.priority.id = :priorityId)
+      AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
+      AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
+      AND (:epicId IS NULL OR t.epic.id = :epicId)
+      AND (:labelId IS NULL OR l.id = :labelId)
+      AND (:rootOnly = false OR t.parent IS NULL)
+      """)
+  Page<Ticket> searchActiveByProject(@Param("projectId") Long projectId, @Param("q") String q,
+      @Param("statusId") Long statusId, @Param("priorityId") Long priorityId, @Param("responsibleId") Long responsibleId,
+      @Param("sprintId") Long sprintId, @Param("epicId") Long epicId, @Param("labelId") Long labelId,
+      @Param("rootOnly") boolean rootOnly, Pageable pageable);
 
   @Query("""
           SELECT t

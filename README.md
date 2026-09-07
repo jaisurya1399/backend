@@ -4,6 +4,7 @@ Spring Boot 3 (Java 21) REST API for project/ticket/sprint management, with JWT 
 PostgreSQL + Flyway migrations.
 
 ## Requirements
+
 - JDK 21
 - Maven 3.9+
 - PostgreSQL 14+
@@ -13,15 +14,15 @@ PostgreSQL + Flyway migrations.
 All environment-specific and secret values are read from environment variables
 (with dev-friendly local defaults baked in so it still runs out of the box):
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `SPRING_PROFILES_ACTIVE` | `dev` | `dev` or `prod` |
-| `SERVER_PORT` | `8080` | HTTP port |
-| `DB_URL` | `jdbc:postgresql://localhost:5432/pmt` | Postgres JDBC URL |
-| `DB_USERNAME` | `postgres` | DB user |
-| `DB_PASSWORD` | `postgres` | DB password |
-| `JWT_SECRET` | (dev placeholder in `application.properties`) | HMAC signing key — **must** be overridden in any real deployment |
-| `JWT_EXPIRATION` | `86400000` (24h, ms) | Token lifetime |
+| Variable                 | Default                                       | Purpose                                                          |
+| ------------------------ | --------------------------------------------- | ---------------------------------------------------------------- |
+| `SPRING_PROFILES_ACTIVE` | `dev`                                         | `dev` or `prod`                                                  |
+| `SERVER_PORT`            | `8080`                                        | HTTP port                                                        |
+| `DB_URL`                 | `jdbc:postgresql://localhost:5432/pmt`        | Postgres JDBC URL                                                |
+| `DB_USERNAME`            | `postgres`                                    | DB user                                                          |
+| `DB_PASSWORD`            | `postgres`                                    | DB password                                                      |
+| `JWT_SECRET`             | (dev placeholder in `application.properties`) | HMAC signing key — **must** be overridden in any real deployment |
+| `JWT_EXPIRATION`         | `86400000` (24h, ms)                          | Token lifetime                                                   |
 
 **Never deploy with the default `JWT_SECRET` or `DB_PASSWORD`.** Set real values via
 env vars / your secrets manager.
@@ -56,6 +57,21 @@ the project owner) manages project settings, memberships, and destructive action
 Issues can be nested as sub-tasks by passing `parentId` in the ticket payload. Use
 `GET /api/tickets/project/{projectId}/root` for root issues and
 `GET /api/tickets/{ticketId}/children` for direct sub-tasks.
+
+Ticket statuses have categories: `BACKLOG`, `TODO`, `IN_PROGRESS`, `DONE`, and
+`CANCELLED`. Use `PUT /api/tickets/{ticketId}/transition` with a `statusId` to
+perform a tracked status change. `GET /api/tickets/project/{projectId}/board`
+returns active issues grouped into ordered Kanban columns.
+
+For atomic drag/drop and backlog grooming, call
+`PUT /api/tickets/project/{projectId}/plan` with an ordered `ticketIds` list.
+Optionally provide `statusId` to move a board column, `sprintId` to plan a sprint,
+or `moveToBacklog: true` to remove the issues from their sprint.
+
+Use `GET /api/tickets/project/{projectId}/filter` for paginated issue search. It
+accepts `q`, `statusId`, `priorityId`, `responsibleId`, `sprintId`, `epicId`,
+`labelId`, `rootOnly`, `page`, `size`, `sort`, and `direction`. Personal saved
+filters are available under `/api/projects/{projectId}/ticket-views`.
 
 ## Building
 

@@ -5,6 +5,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Comparator;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,10 +25,12 @@ import com.projectmanagement.app.milestone.MilestoneRepository;
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.project.ProjectRepository;
 import com.projectmanagement.app.project.ProjectAccessService;
+import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
 import com.projectmanagement.app.sprint.Sprint;
 import com.projectmanagement.app.sprint.SprintRepository;
+import com.projectmanagement.app.sprint.SprintStatus;
 
 @Service
 @Transactional
@@ -40,6 +47,8 @@ public class TicketService {
         private final MilestoneRepository milestoneRepository;
         private final LabelRepository labelRepository;
         private final ProjectAccessService projectAccessService;
+        private final TicketActivityRepository ticketActivityRepository;
+        private final CurrentUserService currentUserService;
 
         public TicketService(
                         TicketRepository ticketRepository,
@@ -52,7 +61,9 @@ public class TicketService {
                         SprintRepository sprintRepository,
                         MilestoneRepository milestoneRepository,
                         LabelRepository labelRepository,
-                        ProjectAccessService projectAccessService) {
+                        ProjectAccessService projectAccessService,
+                        TicketActivityRepository ticketActivityRepository,
+                        CurrentUserService currentUserService) {
 
                 this.ticketRepository = ticketRepository;
                 this.projectRepository = projectRepository;
@@ -65,6 +76,8 @@ public class TicketService {
                 this.milestoneRepository = milestoneRepository;
                 this.labelRepository = labelRepository;
                 this.projectAccessService = projectAccessService;
+                this.ticketActivityRepository = ticketActivityRepository;
+                this.currentUserService = currentUserService;
         }
 
         // ============================================================
@@ -246,6 +259,22 @@ public class TicketService {
                                 .stream().filter(this::canView).map(this::toResponse).toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<BoardColumnResponse> getBoard(Long projectId) {
+                Project project = getProject(projectId);
+                projectAccessService.requireView(project);
+                List<TicketStatus> statuses = new ArrayList<>(ticketStatusRepository.findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(projectId));
+                statuses.addAll(ticketStatusRepository.findByProjectIdIsNullAndDeletedAtIsNull());
+                return statuses.stream().sorted(Comparator.comparing(TicketStatus::getOrder).thenComparing(TicketStatus::getId))
+                                .map(status -> BoardColumnResponse.builder()
+                                                .statusId(status.getId()).statusName(status.getName()).statusColor(status.getColor())
+                                                .category(status.getCategory()).order(status.getOrder())
+                                                .tickets(ticketRepository.findByProjectIdAndStatusIdAndDeletedAtIsNullOrderByOrderAsc(projectId, status.getId())
+                                                                .stream().map(this::toResponse).toList())
+                                                .build())
+                                .toList();
+        }
+
         // ============================================================
         // GET BY OWNER
         // ============================================================
@@ -379,6 +408,24 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public TicketPageResponse filter(Long projectId, TicketFilterRequest filter) {
+                projectAccessService.requireView(getProject(projectId));
+                String requestedSort = filter.getSort() == null || filter.getSort().isBlank() ? "order" : filter.getSort();
+                String sortProperty = switch (requestedSort) {
+                        case "createdAt", "updatedAt", "code", "name", "order", "estimation" -> requestedSort;
+                        default -> throw new RuntimeException("Unsupported sort field");
+                };
+                Sort.Direction direction = "DESC".equalsIgnoreCase(filter.getDirection()) ? Sort.Direction.DESC : Sort.Direction.ASC;
+                Page<Ticket> page = ticketRepository.searchActiveByProject(projectId,
+                                blankToNull(filter.getQ()), filter.getStatusId(), filter.getPriorityId(), filter.getResponsibleId(),
+                                filter.getSprintId(), filter.getEpicId(), filter.getLabelId(), Boolean.TRUE.equals(filter.getRootOnly()),
+                                PageRequest.of(filter.getPage(), filter.getSize(), Sort.by(direction, sortProperty)));
+                return TicketPageResponse.builder().items(page.getContent().stream().map(this::toResponse).toList())
+                                .page(page.getNumber()).size(page.getSize()).totalItems(page.getTotalElements()).totalPages(page.getTotalPages())
+                                .first(page.isFirst()).last(page.isLast()).build();
+        }
+
         // ============================================================
         // CREATE
         // ============================================================
@@ -478,6 +525,7 @@ public class TicketService {
                                 .owner(owner)
                                 .responsible(responsible)
                                 .status(status)
+                                .resolvedAt(isTerminalStatus(status) ? LocalDateTime.now() : null)
                                 .project(project)
                                 .code(code)
                                 .type(type)
@@ -549,6 +597,7 @@ public class TicketService {
                                                 "Ticket status not found with id: "
                                                                 + request.getStatusId()));
                 validateStatusBelongsToProject(status, project);
+                TicketStatus oldStatus = ticket.getStatus();
 
                 TicketType type = ticketTypeRepository
                                 .findById(request.getTypeId())
@@ -608,6 +657,7 @@ public class TicketService {
                 ticket.setOwner(owner);
                 ticket.setResponsible(responsible);
                 ticket.setStatus(status);
+                applyStatusChange(ticket, oldStatus, status);
                 ticket.setProject(project);
                 ticket.setType(type);
 
@@ -632,6 +682,65 @@ public class TicketService {
                 Ticket updated = ticketRepository.save(ticket);
 
                 return toResponse(updated);
+        }
+
+        public TicketResponse transition(Long id, TicketTransitionRequest request) {
+                Ticket ticket = ticketRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
+                projectAccessService.requireEditor(ticket.getProject());
+                TicketStatus status = ticketStatusRepository.findById(request.getStatusId())
+                                .orElseThrow(() -> new RuntimeException("Ticket status not found with id: " + request.getStatusId()));
+                validateStatusBelongsToProject(status, ticket.getProject());
+                TicketStatus oldStatus = ticket.getStatus();
+                applyStatusChange(ticket, oldStatus, status);
+                ticket.setStatus(status);
+                return toResponse(ticketRepository.save(ticket));
+        }
+
+        /**
+         * Moves and ranks issues atomically. It powers backlog grooming and Kanban drag/drop.
+         * The supplied order becomes 0..N within the selected status/sprint context.
+         */
+        public List<TicketResponse> plan(Long projectId, TicketPlanningRequest request) {
+                Project project = getProject(projectId);
+                projectAccessService.requireEditor(project);
+                if (new HashSet<>(request.getTicketIds()).size() != request.getTicketIds().size())
+                        throw new RuntimeException("Ticket IDs must not contain duplicates");
+                if (request.getSprintId() != null && Boolean.TRUE.equals(request.getMoveToBacklog()))
+                        throw new RuntimeException("Specify a sprint or moveToBacklog, not both");
+
+                TicketStatus targetStatus = null;
+                if (request.getStatusId() != null) {
+                        targetStatus = ticketStatusRepository.findById(request.getStatusId())
+                                        .orElseThrow(() -> new RuntimeException("Ticket status not found"));
+                        validateStatusBelongsToProject(targetStatus, project);
+                }
+                Sprint targetSprint = null;
+                if (request.getSprintId() != null) {
+                        targetSprint = sprintRepository.findByIdAndProjectId(request.getSprintId(), projectId)
+                                        .orElseThrow(() -> new RuntimeException("Sprint does not belong to the selected project"));
+                        if (targetSprint.getStatus() == SprintStatus.COMPLETED || targetSprint.getStatus() == SprintStatus.CANCELLED)
+                                throw new RuntimeException("Cannot plan tickets in a completed or cancelled sprint");
+                }
+
+                List<Ticket> tickets = new ArrayList<>();
+                for (Long ticketId : request.getTicketIds()) {
+                        Ticket ticket = ticketRepository.findById(ticketId)
+                                        .filter(item -> item.getDeletedAt() == null)
+                                        .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
+                        if (!ticket.getProject().getId().equals(projectId))
+                                throw new RuntimeException("All tickets must belong to the selected project");
+                        if (targetStatus != null) {
+                                TicketStatus oldStatus = ticket.getStatus();
+                                ticket.setStatus(targetStatus);
+                                applyStatusChange(ticket, oldStatus, targetStatus);
+                        }
+                        if (targetSprint != null) ticket.setSprint(targetSprint);
+                        if (Boolean.TRUE.equals(request.getMoveToBacklog())) ticket.setSprint(null);
+                        ticket.setOrder(tickets.size());
+                        tickets.add(ticket);
+                }
+                return ticketRepository.saveAll(tickets).stream().map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -688,6 +797,10 @@ public class TicketService {
         private Project getProject(Long projectId) {
                 return projectRepository.findById(projectId)
                                 .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+        }
+
+        private String blankToNull(String value) {
+                return value == null || value.isBlank() ? null : value.trim();
         }
 
         private boolean canView(Ticket ticket) {
@@ -767,6 +880,17 @@ public class TicketService {
                 if (status.getProject() != null && !status.getProject().getId().equals(project.getId())) {
                         throw new RuntimeException("Ticket status does not belong to the selected project");
                 }
+        }
+
+        private boolean isTerminalStatus(TicketStatus status) {
+                return status.getCategory() == TicketStatusCategory.DONE || status.getCategory() == TicketStatusCategory.CANCELLED;
+        }
+
+        private void applyStatusChange(Ticket ticket, TicketStatus oldStatus, TicketStatus newStatus) {
+                if (oldStatus != null && oldStatus.getId().equals(newStatus.getId())) return;
+                ticket.setResolvedAt(isTerminalStatus(newStatus) ? LocalDateTime.now() : null);
+                ticketActivityRepository.save(TicketActivity.builder().ticket(ticket).oldStatus(oldStatus).newStatus(newStatus)
+                                .user(currentUserService.getCurrentUser()).build());
         }
 
         private Sprint resolveSprint(Long sprintId, Project project) {
@@ -850,12 +974,14 @@ public class TicketService {
                 Long statusId = null;
                 String statusName = null;
                 String statusColor = null;
+                TicketStatusCategory statusCategory = null;
 
                 if (ticket.getStatus() != null) {
 
                         statusId = ticket.getStatus().getId();
                         statusName = ticket.getStatus().getName();
                         statusColor = ticket.getStatus().getColor();
+                        statusCategory = ticket.getStatus().getCategory();
                 }
 
                 Long projectId = null;
@@ -927,6 +1053,7 @@ public class TicketService {
                                 .statusId(statusId)
                                 .statusName(statusName)
                                 .statusColor(statusColor)
+                                .statusCategory(statusCategory)
 
                                 .projectId(projectId)
                                 .projectName(projectName)
@@ -961,6 +1088,7 @@ public class TicketService {
                                 .labelIds(labelIds)
 
                                 .deletedAt(ticket.getDeletedAt())
+                                .resolvedAt(ticket.getResolvedAt())
                                 .createdAt(ticket.getCreatedAt())
                                 .updatedAt(ticket.getUpdatedAt())
 

@@ -9,8 +9,10 @@ import org.springframework.transaction.annotation.Transactional;
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.project.ProjectRepository;
 import com.projectmanagement.app.project.ProjectUserRepository;
+import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.ticket.Ticket;
 import com.projectmanagement.app.ticket.TicketRepository;
+import com.projectmanagement.app.ticket.TicketStatusCategory;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
 
@@ -23,18 +25,21 @@ public class SprintService {
     private final ProjectUserRepository projectUserRepository;
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
+    private final ProjectAccessService projectAccessService;
 
     public SprintService(
             SprintRepository sprintRepository,
             ProjectRepository projectRepository,
             ProjectUserRepository projectUserRepository,
             TicketRepository ticketRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            ProjectAccessService projectAccessService) {
         this.sprintRepository = sprintRepository;
         this.projectRepository = projectRepository;
         this.projectUserRepository = projectUserRepository;
         this.ticketRepository = ticketRepository;
         this.userRepository = userRepository;
+        this.projectAccessService = projectAccessService;
     }
 
     // =========================================================
@@ -463,7 +468,11 @@ public class SprintService {
          * safely without assuming a specific status name.
          */
 
-        BigDecimal completedEstimation = BigDecimal.ZERO;
+        BigDecimal completedEstimation = tickets.stream()
+                .filter(ticket -> ticket.getStatus().getCategory() == TicketStatusCategory.DONE)
+                .map(Ticket::getEstimation)
+                .filter(value -> value != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal remainingEstimation = totalEstimation.subtract(
                 completedEstimation);
@@ -522,24 +531,7 @@ public class SprintService {
                     "Authenticated user not found");
         }
 
-        boolean member = projectUserRepository
-                .existsByProjectIdAndUserId(
-                        projectId,
-                        userId);
-
-        if (!member) {
-
-            Project project = getProject(projectId);
-
-            if (project.getOwner() == null
-                    || !project.getOwner()
-                            .getId()
-                            .equals(userId)) {
-
-                throw new RuntimeException(
-                        "You do not have access to this project");
-            }
-        }
+        projectAccessService.requireEditor(getProject(projectId));
     }
 
     private void validateNoActiveSprint(

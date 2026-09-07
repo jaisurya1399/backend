@@ -33,6 +33,10 @@ public class TicketStatusRequest {
     @NotNull(message = "Order is required")
     private Integer order = 1;
 
+    @NotNull(message = "Status category is required")
+    @Builder.Default
+    private TicketStatusCategory category = TicketStatusCategory.TODO;
+
     @Positive(message = "Project ID must be positive")
     private Long projectId;
 }
