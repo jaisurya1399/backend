@@ -1,15 +1,17 @@
 package com.projectmanagement.app.sprint;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.project.Project;
+import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.project.ProjectRepository;
 import com.projectmanagement.app.project.ProjectUserRepository;
-import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.ticket.Ticket;
 import com.projectmanagement.app.ticket.TicketRepository;
 import com.projectmanagement.app.ticket.TicketStatusCategory;
@@ -20,619 +22,696 @@ import com.projectmanagement.app.user.UserRepository;
 @Transactional
 public class SprintService {
 
-    private final SprintRepository sprintRepository;
-    private final ProjectRepository projectRepository;
-    private final ProjectUserRepository projectUserRepository;
-    private final TicketRepository ticketRepository;
-    private final UserRepository userRepository;
-    private final ProjectAccessService projectAccessService;
+        private final SprintRepository sprintRepository;
+        private final ProjectRepository projectRepository;
+        private final ProjectUserRepository projectUserRepository;
+        private final TicketRepository ticketRepository;
+        private final UserRepository userRepository;
+        private final ProjectAccessService projectAccessService;
+        private final SprintIssueSnapshotRepository snapshotRepository;
 
-    public SprintService(
-            SprintRepository sprintRepository,
-            ProjectRepository projectRepository,
-            ProjectUserRepository projectUserRepository,
-            TicketRepository ticketRepository,
-            UserRepository userRepository,
-            ProjectAccessService projectAccessService) {
-        this.sprintRepository = sprintRepository;
-        this.projectRepository = projectRepository;
-        this.projectUserRepository = projectUserRepository;
-        this.ticketRepository = ticketRepository;
-        this.userRepository = userRepository;
-        this.projectAccessService = projectAccessService;
-    }
-
-    // =========================================================
-    // CREATE
-    // =========================================================
-
-    public SprintResponse create(
-            SprintRequest request,
-            Long userId) {
-
-        Project project = getProject(request.getProjectId());
-
-        validateProjectAccess(
-                project.getId(),
-                userId);
-
-        validateSprintName(
-                project.getId(),
-                request.getName(),
-                null);
-
-        validateDates(
-                request.getStartDate(),
-                request.getEndDate());
-
-        if (request.getStatus() == SprintStatus.ACTIVE) {
-
-            validateNoActiveSprint(
-                    project.getId());
+        public SprintService(
+                        SprintRepository sprintRepository,
+                        ProjectRepository projectRepository,
+                        ProjectUserRepository projectUserRepository,
+                        TicketRepository ticketRepository,
+                        UserRepository userRepository,
+                        ProjectAccessService projectAccessService,
+                        SprintIssueSnapshotRepository snapshotRepository) {
+                this.sprintRepository = sprintRepository;
+                this.projectRepository = projectRepository;
+                this.projectUserRepository = projectUserRepository;
+                this.ticketRepository = ticketRepository;
+                this.userRepository = userRepository;
+                this.projectAccessService = projectAccessService;
+                this.snapshotRepository = snapshotRepository;
         }
 
-        User user = getUser(userId);
+        // =========================================================
+        // CREATE
+        // =========================================================
 
-        Sprint sprint = Sprint.builder()
-                .name(request.getName().trim())
-                .goal(request.getGoal())
-                .project(project)
-                .startDate(request.getStartDate())
-                .endDate(request.getEndDate())
-                .status(
-                        request.getStatus() == null
-                                ? SprintStatus.PLANNED
-                                : request.getStatus())
-                .createdBy(user)
-                .build();
+        public SprintResponse create(
+                        SprintRequest request,
+                        Long userId) {
 
-        return toResponse(
-                sprintRepository.save(sprint));
-    }
+                Project project = getProject(request.getProjectId());
 
-    // =========================================================
-    // GET ALL
-    // =========================================================
+                validateProjectAccess(
+                                project.getId(),
+                                userId);
 
-    @Transactional(readOnly = true)
-    public List<SprintResponse> getAll() {
+                validateSprintName(
+                                project.getId(),
+                                request.getName(),
+                                null);
 
-        return sprintRepository.findAll()
-                .stream()
-                .map(this::toResponse)
-                .toList();
-    }
+                validateDates(
+                                request.getStartDate(),
+                                request.getEndDate());
 
-    // =========================================================
-    // GET BY ID
-    // =========================================================
+                if (request.getStatus() == SprintStatus.ACTIVE) {
 
-    @Transactional(readOnly = true)
-    public SprintResponse getById(Long id) {
+                        validateNoActiveSprint(
+                                        project.getId());
+                }
 
-        Sprint sprint = getSprint(id);
+                User user = getUser(userId);
 
-        return toResponse(sprint);
-    }
+                Sprint sprint = Sprint.builder()
+                                .name(request.getName().trim())
+                                .goal(request.getGoal())
+                                .project(project)
+                                .startDate(request.getStartDate())
+                                .endDate(request.getEndDate())
+                                .status(
+                                                request.getStatus() == null
+                                                                ? SprintStatus.PLANNED
+                                                                : request.getStatus())
+                                .createdBy(user)
+                                .build();
 
-    // =========================================================
-    // GET PROJECT SPRINTS
-    // =========================================================
-
-    @Transactional(readOnly = true)
-    public List<SprintResponse> getByProject(
-            Long projectId) {
-
-        if (!projectRepository.existsById(projectId)) {
-            throw new RuntimeException("Project not found");
+                return toResponse(
+                                sprintRepository.save(sprint));
         }
 
-        return sprintRepository
-                .findByProjectIdOrderByCreatedAtDesc(projectId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
-    }
+        // =========================================================
+        // GET ALL
+        // =========================================================
 
-    // =========================================================
-    // UPDATE
-    // =========================================================
+        @Transactional(readOnly = true)
+        public List<SprintResponse> getAll() {
 
-    public SprintResponse update(
-            Long id,
-            SprintRequest request,
-            Long userId) {
-
-        Sprint sprint = getSprint(id);
-
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
-
-        if (!sprint.getProject().getId()
-                .equals(request.getProjectId())) {
-
-            throw new RuntimeException(
-                    "Sprint project cannot be changed");
+                return sprintRepository.findAll()
+                                .stream()
+                                .map(this::toResponse)
+                                .toList();
         }
 
-        validateSprintName(
-                request.getProjectId(),
-                request.getName(),
-                id);
+        // =========================================================
+        // GET BY ID
+        // =========================================================
 
-        validateDates(
-                request.getStartDate(),
-                request.getEndDate());
+        @Transactional(readOnly = true)
+        public SprintResponse getById(Long id) {
 
-        SprintStatus newStatus = request.getStatus() == null
-                ? sprint.getStatus()
-                : request.getStatus();
+                Sprint sprint = getSprint(id);
 
-        if (newStatus == SprintStatus.ACTIVE
-                && sprint.getStatus() != SprintStatus.ACTIVE) {
-
-            validateNoActiveSprint(
-                    sprint.getProject().getId());
+                return toResponse(sprint);
         }
 
-        if (sprint.getStatus() == SprintStatus.COMPLETED
-                && newStatus != SprintStatus.COMPLETED) {
+        // =========================================================
+        // GET PROJECT SPRINTS
+        // =========================================================
 
-            throw new RuntimeException(
-                    "Completed sprint cannot be reopened");
+        @Transactional(readOnly = true)
+        public List<SprintResponse> getByProject(
+                        Long projectId) {
+
+                if (!projectRepository.existsById(projectId)) {
+                        throw new RuntimeException("Project not found");
+                }
+
+                return sprintRepository
+                                .findByProjectIdOrderByCreatedAtDesc(projectId)
+                                .stream()
+                                .map(this::toResponse)
+                                .toList();
         }
 
-        sprint.setName(request.getName().trim());
-        sprint.setGoal(request.getGoal());
-        sprint.setStartDate(request.getStartDate());
-        sprint.setEndDate(request.getEndDate());
-        sprint.setStatus(newStatus);
+        // =========================================================
+        // UPDATE
+        // =========================================================
 
-        return toResponse(
-                sprintRepository.save(sprint));
-    }
+        public SprintResponse update(
+                        Long id,
+                        SprintRequest request,
+                        Long userId) {
 
-    // =========================================================
-    // DELETE
-    // =========================================================
+                Sprint sprint = getSprint(id);
 
-    public void delete(
-            Long id,
-            Long userId) {
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
 
-        Sprint sprint = getSprint(id);
+                if (!sprint.getProject().getId()
+                                .equals(request.getProjectId())) {
 
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
+                        throw new RuntimeException(
+                                        "Sprint project cannot be changed");
+                }
 
-        if (sprint.getStatus() == SprintStatus.ACTIVE) {
+                validateSprintName(
+                                request.getProjectId(),
+                                request.getName(),
+                                id);
 
-            throw new RuntimeException(
-                    "Active sprint cannot be deleted");
+                validateDates(
+                                request.getStartDate(),
+                                request.getEndDate());
+
+                SprintStatus newStatus = request.getStatus() == null
+                                ? sprint.getStatus()
+                                : request.getStatus();
+
+                if (newStatus == SprintStatus.ACTIVE
+                                && sprint.getStatus() != SprintStatus.ACTIVE) {
+
+                        validateNoActiveSprint(
+                                        sprint.getProject().getId());
+                }
+
+                if (sprint.getStatus() == SprintStatus.COMPLETED
+                                && newStatus != SprintStatus.COMPLETED) {
+
+                        throw new RuntimeException(
+                                        "Completed sprint cannot be reopened");
+                }
+
+                sprint.setName(request.getName().trim());
+                sprint.setGoal(request.getGoal());
+                sprint.setStartDate(request.getStartDate());
+                sprint.setEndDate(request.getEndDate());
+                sprint.setStatus(newStatus);
+
+                return toResponse(
+                                sprintRepository.save(sprint));
         }
 
-        List<Ticket> tickets = ticketRepository.findBySprintIdOrderByOrderAsc(id);
+        // =========================================================
+        // DELETE
+        // =========================================================
 
-        for (Ticket ticket : tickets) {
-            ticket.setSprint(null);
+        public void delete(
+                        Long id,
+                        Long userId) {
+
+                Sprint sprint = getSprint(id);
+
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
+
+                if (sprint.getStatus() == SprintStatus.ACTIVE) {
+
+                        throw new RuntimeException(
+                                        "Active sprint cannot be deleted");
+                }
+
+                List<Ticket> tickets = ticketRepository.findBySprintIdOrderByOrderAsc(id);
+
+                for (Ticket ticket : tickets) {
+                        ticket.setSprint(null);
+                }
+
+                ticketRepository.saveAll(tickets);
+
+                sprintRepository.delete(sprint);
         }
 
-        ticketRepository.saveAll(tickets);
+        // =========================================================
+        // START
+        // =========================================================
 
-        sprintRepository.delete(sprint);
-    }
+        public SprintResponse start(
+                        Long id,
+                        Long userId) {
 
-    // =========================================================
-    // START
-    // =========================================================
+                Sprint sprint = getSprint(id);
 
-    public SprintResponse start(
-            Long id,
-            Long userId) {
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
 
-        Sprint sprint = getSprint(id);
+                if (sprint.getStatus() == SprintStatus.COMPLETED) {
 
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
+                        throw new RuntimeException(
+                                        "Completed sprint cannot be started");
+                }
 
-        if (sprint.getStatus() == SprintStatus.COMPLETED) {
+                if (sprint.getStatus() == SprintStatus.CANCELLED) {
 
-            throw new RuntimeException(
-                    "Completed sprint cannot be started");
+                        throw new RuntimeException(
+                                        "Cancelled sprint cannot be started");
+                }
+
+                validateNoActiveSprint(
+                                sprint.getProject().getId());
+
+                sprint.setStatus(SprintStatus.ACTIVE);
+
+                return toResponse(
+                                sprintRepository.save(sprint));
         }
 
-        if (sprint.getStatus() == SprintStatus.CANCELLED) {
+        // =========================================================
+        // COMPLETE
+        // =========================================================
 
-            throw new RuntimeException(
-                    "Cancelled sprint cannot be started");
+        public SprintResponse complete(Long id, Long userId) {
+                return complete(id, SprintCompletionRequest.builder().moveIncompleteToBacklog(true).build(), userId);
         }
 
-        validateNoActiveSprint(
-                sprint.getProject().getId());
+        public SprintResponse complete(Long id, SprintCompletionRequest request, Long userId) {
 
-        sprint.setStatus(SprintStatus.ACTIVE);
+                Sprint sprint = getSprint(id);
 
-        return toResponse(
-                sprintRepository.save(sprint));
-    }
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
 
-    // =========================================================
-    // COMPLETE
-    // =========================================================
+                if (sprint.getStatus() != SprintStatus.ACTIVE) {
 
-    public SprintResponse complete(
-            Long id,
-            Long userId) {
+                        throw new RuntimeException(
+                                        "Only active sprint can be completed");
+                }
 
-        Sprint sprint = getSprint(id);
+                Sprint carryOverSprint = null;
+                if (request.getCarryOverSprintId() != null) {
+                        carryOverSprint = sprintRepository
+                                        .findByIdAndProjectId(request.getCarryOverSprintId(),
+                                                        sprint.getProject().getId())
+                                        .orElseThrow(() -> new RuntimeException(
+                                                        "Carry-over sprint does not belong to this project"));
+                        if (carryOverSprint.getId().equals(sprint.getId()))
+                                throw new RuntimeException("A sprint cannot carry over into itself");
+                        if (carryOverSprint.getStatus() == SprintStatus.COMPLETED
+                                        || carryOverSprint.getStatus() == SprintStatus.CANCELLED)
+                                throw new RuntimeException("Cannot carry issues into a completed or cancelled sprint");
+                }
 
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
+                List<Ticket> sprintTickets = ticketRepository.findBySprintIdOrderByOrderAsc(id);
+                snapshotRepository.saveAll(sprintTickets.stream()
+                                .map(ticket -> SprintIssueSnapshot.builder().sprint(sprint)
+                                                .ticketId(ticket.getId()).estimation(ticket.getEstimation())
+                                                .resolvedAt(ticket.getResolvedAt())
+                                                .finalStatusCategory(ticket.getStatus().getCategory()).build())
+                                .toList());
+                List<Ticket> incomplete = sprintTickets.stream()
+                                .filter(ticket -> ticket.getStatus().getCategory() != TicketStatusCategory.DONE
+                                                && ticket.getStatus().getCategory() != TicketStatusCategory.CANCELLED)
+                                .toList();
+                if (carryOverSprint != null)
+                        incomplete.forEach(ticket -> ticket.setSprint(carryOverSprint));
+                else if (Boolean.TRUE.equals(request.getMoveIncompleteToBacklog()))
+                        incomplete.forEach(ticket -> ticket.setSprint(null));
+                ticketRepository.saveAll(incomplete);
 
-        if (sprint.getStatus() != SprintStatus.ACTIVE) {
+                sprint.setStatus(
+                                SprintStatus.COMPLETED);
 
-            throw new RuntimeException(
-                    "Only active sprint can be completed");
+                return toResponse(
+                                sprintRepository.save(sprint));
         }
 
-        sprint.setStatus(
-                SprintStatus.COMPLETED);
-
-        return toResponse(
-                sprintRepository.save(sprint));
-    }
-
-    // =========================================================
-    // CANCEL
-    // =========================================================
-
-    public SprintResponse cancel(
-            Long id,
-            Long userId) {
-
-        Sprint sprint = getSprint(id);
-
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
-
-        if (sprint.getStatus() == SprintStatus.COMPLETED) {
-
-            throw new RuntimeException(
-                    "Completed sprint cannot be cancelled");
+        public SprintBurndownResponse burndown(Long sprintId) {
+                Sprint sprint = getSprint(sprintId);
+                projectAccessService.requireView(sprint.getProject());
+                List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(sprintId);
+                List<Ticket> tickets = snapshots.isEmpty()
+                                ? ticketRepository.findBySprintIdOrderByOrderAsc(sprintId).stream()
+                                                .filter(ticket -> ticket.getDeletedAt() == null).toList()
+                                : List.of();
+                BigDecimal total = snapshots.isEmpty()
+                                ? tickets.stream().map(Ticket::getEstimation).filter(java.util.Objects::nonNull)
+                                                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                : snapshots.stream().map(SprintIssueSnapshot::getEstimation).reduce(BigDecimal.ZERO,
+                                                BigDecimal::add);
+                LocalDate start = sprint.getStartDate() == null ? sprint.getCreatedAt().toLocalDate()
+                                : sprint.getStartDate();
+                LocalDate end = sprint.getEndDate() == null ? LocalDate.now() : sprint.getEndDate();
+                if (end.isBefore(start))
+                        end = start;
+                List<SprintProgressPointResponse> points = new ArrayList<>();
+                for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                        LocalDate current = date;
+                        BigDecimal completed = snapshots.isEmpty()
+                                        ? tickets.stream().filter(ticket -> ticket.getResolvedAt() != null
+                                                        && !ticket.getResolvedAt().toLocalDate().isAfter(current)
+                                                        && ticket.getStatus()
+                                                                        .getCategory() == TicketStatusCategory.DONE)
+                                                        .map(Ticket::getEstimation).filter(java.util.Objects::nonNull)
+                                                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                        : snapshots.stream().filter(ticket -> ticket.getResolvedAt() != null
+                                                        && !ticket.getResolvedAt().toLocalDate().isAfter(current)
+                                                        && ticket.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                        .map(SprintIssueSnapshot::getEstimation)
+                                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        points.add(SprintProgressPointResponse.builder().date(date).scopeEstimate(total)
+                                        .completedEstimate(completed)
+                                        .remainingEstimate(total.subtract(completed)).build());
+                }
+                return SprintBurndownResponse.builder().sprintId(sprintId).sprintName(sprint.getName())
+                                .totalEstimate(total).points(points).build();
         }
 
-        sprint.setStatus(
-                SprintStatus.CANCELLED);
+        // =========================================================
+        // CANCEL
+        // =========================================================
 
-        return toResponse(
-                sprintRepository.save(sprint));
-    }
+        public SprintResponse cancel(
+                        Long id,
+                        Long userId) {
 
-    // =========================================================
-    // GET SPRINT TICKETS
-    // =========================================================
+                Sprint sprint = getSprint(id);
 
-    @Transactional(readOnly = true)
-    public List<Ticket> getSprintTickets(
-            Long sprintId) {
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
 
-        getSprint(sprintId);
+                if (sprint.getStatus() == SprintStatus.COMPLETED) {
 
-        return ticketRepository
-                .findBySprintIdOrderByOrderAsc(sprintId);
-    }
+                        throw new RuntimeException(
+                                        "Completed sprint cannot be cancelled");
+                }
 
-    // =========================================================
-    // GET PROJECT BACKLOG
-    // =========================================================
+                sprint.setStatus(
+                                SprintStatus.CANCELLED);
 
-    @Transactional(readOnly = true)
-    public List<Ticket> getBacklog(
-            Long projectId) {
-
-        if (!projectRepository.existsById(projectId)) {
-            throw new RuntimeException(
-                    "Project not found");
+                return toResponse(
+                                sprintRepository.save(sprint));
         }
 
-        return ticketRepository
-                .findByProjectIdAndSprintIsNullOrderByOrderAsc(
-                        projectId);
-    }
+        // =========================================================
+        // GET SPRINT TICKETS
+        // =========================================================
 
-    // =========================================================
-    // ADD TICKET TO SPRINT
-    // =========================================================
+        @Transactional(readOnly = true)
+        public List<Ticket> getSprintTickets(
+                        Long sprintId) {
 
-    public Ticket addTicket(
-            Long sprintId,
-            Long ticketId,
-            Long userId) {
+                getSprint(sprintId);
 
-        Sprint sprint = getSprint(sprintId);
-
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
-
-        Ticket ticket = ticketRepository
-                .findById(ticketId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Ticket not found"));
-
-        if (!ticket.getProject().getId()
-                .equals(sprint.getProject().getId())) {
-
-            throw new RuntimeException(
-                    "Ticket does not belong to sprint project");
+                return ticketRepository
+                                .findBySprintIdOrderByOrderAsc(sprintId);
         }
 
-        if (sprint.getStatus() == SprintStatus.COMPLETED
-                || sprint.getStatus() == SprintStatus.CANCELLED) {
+        // =========================================================
+        // GET PROJECT BACKLOG
+        // =========================================================
 
-            throw new RuntimeException(
-                    "Ticket cannot be added to completed/cancelled sprint");
+        @Transactional(readOnly = true)
+        public List<Ticket> getBacklog(
+                        Long projectId) {
+
+                if (!projectRepository.existsById(projectId)) {
+                        throw new RuntimeException(
+                                        "Project not found");
+                }
+
+                return ticketRepository
+                                .findByProjectIdAndSprintIsNullOrderByOrderAsc(
+                                                projectId);
         }
 
-        ticket.setSprint(sprint);
+        // =========================================================
+        // ADD TICKET TO SPRINT
+        // =========================================================
 
-        return ticketRepository.save(ticket);
-    }
+        public Ticket addTicket(
+                        Long sprintId,
+                        Long ticketId,
+                        Long userId) {
 
-    // =========================================================
-    // REMOVE TICKET FROM SPRINT
-    // =========================================================
+                Sprint sprint = getSprint(sprintId);
 
-    public Ticket removeTicket(
-            Long sprintId,
-            Long ticketId,
-            Long userId) {
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
 
-        Sprint sprint = getSprint(sprintId);
+                Ticket ticket = ticketRepository
+                                .findById(ticketId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Ticket not found"));
 
-        validateProjectAccess(
-                sprint.getProject().getId(),
-                userId);
+                if (!ticket.getProject().getId()
+                                .equals(sprint.getProject().getId())) {
 
-        Ticket ticket = ticketRepository
-                .findById(ticketId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Ticket not found"));
+                        throw new RuntimeException(
+                                        "Ticket does not belong to sprint project");
+                }
 
-        if (ticket.getSprint() == null
-                || !ticket.getSprint().getId()
-                        .equals(sprintId)) {
+                if (sprint.getStatus() == SprintStatus.COMPLETED
+                                || sprint.getStatus() == SprintStatus.CANCELLED) {
 
-            throw new RuntimeException(
-                    "Ticket is not assigned to this sprint");
+                        throw new RuntimeException(
+                                        "Ticket cannot be added to completed/cancelled sprint");
+                }
+
+                ticket.setSprint(sprint);
+
+                return ticketRepository.save(ticket);
         }
 
-        ticket.setSprint(null);
+        // =========================================================
+        // REMOVE TICKET FROM SPRINT
+        // =========================================================
 
-        return ticketRepository.save(ticket);
-    }
+        public Ticket removeTicket(
+                        Long sprintId,
+                        Long ticketId,
+                        Long userId) {
 
-    // =========================================================
-    // MOVE TICKET TO BACKLOG
-    // =========================================================
+                Sprint sprint = getSprint(sprintId);
 
-    public Ticket moveToBacklog(
-            Long ticketId,
-            Long userId) {
+                validateProjectAccess(
+                                sprint.getProject().getId(),
+                                userId);
 
-        Ticket ticket = ticketRepository
-                .findById(ticketId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Ticket not found"));
+                Ticket ticket = ticketRepository
+                                .findById(ticketId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Ticket not found"));
 
-        validateProjectAccess(
-                ticket.getProject().getId(),
-                userId);
+                if (ticket.getSprint() == null
+                                || !ticket.getSprint().getId()
+                                                .equals(sprintId)) {
 
-        ticket.setSprint(null);
+                        throw new RuntimeException(
+                                        "Ticket is not assigned to this sprint");
+                }
 
-        return ticketRepository.save(ticket);
-    }
+                ticket.setSprint(null);
 
-    // =========================================================
-    // SPRINT STATISTICS
-    // =========================================================
-
-    @Transactional(readOnly = true)
-    public SprintStatisticsResponse statistics(
-            Long sprintId) {
-
-        Sprint sprint = getSprint(sprintId);
-
-        List<Ticket> tickets = ticketRepository
-                .findBySprintIdOrderByOrderAsc(
-                        sprintId);
-
-        BigDecimal totalEstimation = tickets.stream()
-                .map(Ticket::getEstimation)
-                .filter(value -> value != null)
-                .reduce(
-                        BigDecimal.ZERO,
-                        BigDecimal::add);
-
-        /*
-         * Completed estimation can be calculated later
-         * according to your TicketStatus configuration.
-         *
-         * Currently we calculate total sprint estimation
-         * safely without assuming a specific status name.
-         */
-
-        BigDecimal completedEstimation = tickets.stream()
-                .filter(ticket -> ticket.getStatus().getCategory() == TicketStatusCategory.DONE)
-                .map(Ticket::getEstimation)
-                .filter(value -> value != null)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        BigDecimal remainingEstimation = totalEstimation.subtract(
-                completedEstimation);
-
-        return SprintStatisticsResponse.builder()
-                .sprintId(sprint.getId())
-                .sprintName(sprint.getName())
-                .totalTickets(
-                        (long) tickets.size())
-                .assignedTickets(
-                        (long) tickets.size())
-                .backlogTickets(0L)
-                .totalEstimation(
-                        totalEstimation)
-                .completedEstimation(
-                        completedEstimation)
-                .remainingEstimation(
-                        remainingEstimation)
-                .build();
-    }
-
-    // =========================================================
-    // HELPERS
-    // =========================================================
-
-    private Sprint getSprint(Long id) {
-
-        return sprintRepository
-                .findById(id)
-                .orElseThrow(() -> new RuntimeException(
-                        "Sprint not found"));
-    }
-
-    private Project getProject(Long id) {
-
-        return projectRepository
-                .findById(id)
-                .orElseThrow(() -> new RuntimeException(
-                        "Project not found"));
-    }
-
-    private User getUser(Long id) {
-
-        return userRepository
-                .findById(id)
-                .orElseThrow(() -> new RuntimeException(
-                        "User not found"));
-    }
-
-    private void validateProjectAccess(
-            Long projectId,
-            Long userId) {
-
-        if (userId == null) {
-            throw new RuntimeException(
-                    "Authenticated user not found");
+                return ticketRepository.save(ticket);
         }
 
-        projectAccessService.requireEditor(getProject(projectId));
-    }
+        // =========================================================
+        // MOVE TICKET TO BACKLOG
+        // =========================================================
 
-    private void validateNoActiveSprint(
-            Long projectId) {
+        public Ticket moveToBacklog(
+                        Long ticketId,
+                        Long userId) {
 
-        boolean active = sprintRepository
-                .existsByProjectIdAndStatus(
-                        projectId,
-                        SprintStatus.ACTIVE);
+                Ticket ticket = ticketRepository
+                                .findById(ticketId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Ticket not found"));
 
-        if (active) {
+                validateProjectAccess(
+                                ticket.getProject().getId(),
+                                userId);
 
-            throw new RuntimeException(
-                    "Another active sprint already exists for this project");
-        }
-    }
+                ticket.setSprint(null);
 
-    private void validateSprintName(
-            Long projectId,
-            String name,
-            Long currentSprintId) {
-
-        boolean exists;
-
-        if (currentSprintId == null) {
-
-            exists = sprintRepository
-                    .existsByProjectIdAndName(
-                            projectId,
-                            name.trim());
-
-        } else {
-
-            exists = sprintRepository
-                    .existsByProjectIdAndNameAndIdNot(
-                            projectId,
-                            name.trim(),
-                            currentSprintId);
+                return ticketRepository.save(ticket);
         }
 
-        if (exists) {
+        // =========================================================
+        // SPRINT STATISTICS
+        // =========================================================
 
-            throw new RuntimeException(
-                    "Sprint with this name already exists in this project");
+        @Transactional(readOnly = true)
+        public SprintStatisticsResponse statistics(
+                        Long sprintId) {
+
+                Sprint sprint = getSprint(sprintId);
+
+                List<Ticket> tickets = ticketRepository
+                                .findBySprintIdOrderByOrderAsc(
+                                                sprintId);
+
+                BigDecimal totalEstimation = tickets.stream()
+                                .map(Ticket::getEstimation)
+                                .filter(value -> value != null)
+                                .reduce(
+                                                BigDecimal.ZERO,
+                                                BigDecimal::add);
+
+                /*
+                 * Completed estimation can be calculated later
+                 * according to your TicketStatus configuration.
+                 *
+                 * Currently we calculate total sprint estimation
+                 * safely without assuming a specific status name.
+                 */
+
+                BigDecimal completedEstimation = tickets.stream()
+                                .filter(ticket -> ticket.getStatus().getCategory() == TicketStatusCategory.DONE)
+                                .map(Ticket::getEstimation)
+                                .filter(value -> value != null)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                BigDecimal remainingEstimation = totalEstimation.subtract(
+                                completedEstimation);
+
+                return SprintStatisticsResponse.builder()
+                                .sprintId(sprint.getId())
+                                .sprintName(sprint.getName())
+                                .totalTickets(
+                                                (long) tickets.size())
+                                .assignedTickets(
+                                                (long) tickets.size())
+                                .backlogTickets(0L)
+                                .totalEstimation(
+                                                totalEstimation)
+                                .completedEstimation(
+                                                completedEstimation)
+                                .remainingEstimation(
+                                                remainingEstimation)
+                                .build();
         }
-    }
 
-    private void validateDates(
-            java.time.LocalDate startDate,
-            java.time.LocalDate endDate) {
+        // =========================================================
+        // HELPERS
+        // =========================================================
 
-        if (startDate != null
-                && endDate != null
-                && endDate.isBefore(startDate)) {
+        private Sprint getSprint(Long id) {
 
-            throw new RuntimeException(
-                    "End date cannot be before start date");
+                return sprintRepository
+                                .findById(id)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Sprint not found"));
         }
-    }
 
-    private SprintResponse toResponse(
-            Sprint sprint) {
+        private Project getProject(Long id) {
 
-        Long ticketCount = ticketRepository.countBySprintId(
-                sprint.getId());
+                return projectRepository
+                                .findById(id)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Project not found"));
+        }
 
-        BigDecimal totalEstimation = ticketRepository
-                .findBySprintIdOrderByOrderAsc(
-                        sprint.getId())
-                .stream()
-                .map(Ticket::getEstimation)
-                .filter(value -> value != null)
-                .reduce(
-                        BigDecimal.ZERO,
-                        BigDecimal::add);
+        private User getUser(Long id) {
 
-        return SprintResponse.builder()
-                .id(sprint.getId())
-                .name(sprint.getName())
-                .goal(sprint.getGoal())
-                .projectId(
-                        sprint.getProject().getId())
-                .projectName(
-                        sprint.getProject().getName())
-                .startDate(
-                        sprint.getStartDate())
-                .endDate(
-                        sprint.getEndDate())
-                .status(
-                        sprint.getStatus())
-                .createdBy(
-                        sprint.getCreatedBy() == null
-                                ? null
-                                : sprint.getCreatedBy().getId())
-                .createdAt(
-                        sprint.getCreatedAt())
-                .updatedAt(
-                        sprint.getUpdatedAt())
-                .ticketCount(ticketCount)
-                .totalEstimation(
-                        totalEstimation)
-                .build();
-    }
+                return userRepository
+                                .findById(id)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "User not found"));
+        }
+
+        private void validateProjectAccess(
+                        Long projectId,
+                        Long userId) {
+
+                if (userId == null) {
+                        throw new RuntimeException(
+                                        "Authenticated user not found");
+                }
+
+                projectAccessService.requireEditor(getProject(projectId));
+        }
+
+        private void validateNoActiveSprint(
+                        Long projectId) {
+
+                boolean active = sprintRepository
+                                .existsByProjectIdAndStatus(
+                                                projectId,
+                                                SprintStatus.ACTIVE);
+
+                if (active) {
+
+                        throw new RuntimeException(
+                                        "Another active sprint already exists for this project");
+                }
+        }
+
+        private void validateSprintName(
+                        Long projectId,
+                        String name,
+                        Long currentSprintId) {
+
+                boolean exists;
+
+                if (currentSprintId == null) {
+
+                        exists = sprintRepository
+                                        .existsByProjectIdAndName(
+                                                        projectId,
+                                                        name.trim());
+
+                } else {
+
+                        exists = sprintRepository
+                                        .existsByProjectIdAndNameAndIdNot(
+                                                        projectId,
+                                                        name.trim(),
+                                                        currentSprintId);
+                }
+
+                if (exists) {
+
+                        throw new RuntimeException(
+                                        "Sprint with this name already exists in this project");
+                }
+        }
+
+        private void validateDates(
+                        java.time.LocalDate startDate,
+                        java.time.LocalDate endDate) {
+
+                if (startDate != null
+                                && endDate != null
+                                && endDate.isBefore(startDate)) {
+
+                        throw new RuntimeException(
+                                        "End date cannot be before start date");
+                }
+        }
+
+        private SprintResponse toResponse(
+                        Sprint sprint) {
+
+                Long ticketCount = ticketRepository.countBySprintId(
+                                sprint.getId());
+
+                BigDecimal totalEstimation = ticketRepository
+                                .findBySprintIdOrderByOrderAsc(
+                                                sprint.getId())
+                                .stream()
+                                .map(Ticket::getEstimation)
+                                .filter(value -> value != null)
+                                .reduce(
+                                                BigDecimal.ZERO,
+                                                BigDecimal::add);
+
+                return SprintResponse.builder()
+                                .id(sprint.getId())
+                                .name(sprint.getName())
+                                .goal(sprint.getGoal())
+                                .projectId(
+                                                sprint.getProject().getId())
+                                .projectName(
+                                                sprint.getProject().getName())
+                                .startDate(
+                                                sprint.getStartDate())
+                                .endDate(
+                                                sprint.getEndDate())
+                                .status(
+                                                sprint.getStatus())
+                                .createdBy(
+                                                sprint.getCreatedBy() == null
+                                                                ? null
+                                                                : sprint.getCreatedBy().getId())
+                                .createdAt(
+                                                sprint.getCreatedAt())
+                                .updatedAt(
+                                                sprint.getUpdatedAt())
+                                .ticketCount(ticketCount)
+                                .totalEstimation(
+                                                totalEstimation)
+                                .build();
+        }
 }

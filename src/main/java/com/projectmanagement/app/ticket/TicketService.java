@@ -5,7 +5,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.data.domain.Page;
@@ -16,6 +18,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projectmanagement.app.audit.AuditService;
 import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.epic.Epic;
 import com.projectmanagement.app.epic.EpicRepository;
@@ -24,6 +27,7 @@ import com.projectmanagement.app.label.LabelRepository;
 import com.projectmanagement.app.milestone.Milestone;
 import com.projectmanagement.app.milestone.MilestoneRepository;
 import com.projectmanagement.app.notification.TicketNotificationService;
+import com.projectmanagement.app.realtime.RealtimeEventService;
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.project.ProjectRepository;
@@ -51,6 +55,8 @@ public class TicketService {
         private final TicketActivityRepository ticketActivityRepository;
         private final CurrentUserService currentUserService;
         private final TicketNotificationService ticketNotificationService;
+        private final AuditService auditService;
+        private final RealtimeEventService realtimeEvents;
 
         public TicketService(
                         TicketRepository ticketRepository,
@@ -66,7 +72,9 @@ public class TicketService {
                         ProjectAccessService projectAccessService,
                         TicketActivityRepository ticketActivityRepository,
                         CurrentUserService currentUserService,
-                        TicketNotificationService ticketNotificationService) {
+                        TicketNotificationService ticketNotificationService,
+                        AuditService auditService,
+                        RealtimeEventService realtimeEvents) {
 
                 this.ticketRepository = ticketRepository;
                 this.projectRepository = projectRepository;
@@ -82,6 +90,8 @@ public class TicketService {
                 this.ticketActivityRepository = ticketActivityRepository;
                 this.currentUserService = currentUserService;
                 this.ticketNotificationService = ticketNotificationService;
+                this.auditService = auditService;
+                this.realtimeEvents = realtimeEvents;
         }
 
         // ============================================================
@@ -561,6 +571,8 @@ public class TicketService {
 
                 Ticket saved = ticketRepository.save(ticket);
                 ticketNotificationService.notifyAssignment(saved, currentUserService.getCurrentUser());
+                auditService.record(project, saved, "TICKET_CREATED", "TICKET", saved.getId(), ticketSnapshot(saved));
+                publishTicketEvent(saved, "ticket.created");
 
                 return toResponse(saved);
         }
@@ -614,6 +626,7 @@ public class TicketService {
                 validateStatusBelongsToProject(status, project);
                 TicketStatus oldStatus = ticket.getStatus();
                 User previousResponsible = ticket.getResponsible();
+                Map<String, Object> before = ticketSnapshot(ticket);
 
                 TicketType type = ticketTypeRepository
                                 .findById(request.getTypeId())
@@ -700,6 +713,9 @@ public class TicketService {
                                 || !previousResponsible.getId().equals(responsible.getId()))) {
                         ticketNotificationService.notifyAssignment(updated, currentUserService.getCurrentUser());
                 }
+                auditService.record(updated.getProject(), updated, "TICKET_UPDATED", "TICKET", updated.getId(),
+                                changes(before, ticketSnapshot(updated)));
+                publishTicketEvent(updated, "ticket.updated");
 
                 return toResponse(updated);
         }
@@ -715,7 +731,14 @@ public class TicketService {
                 TicketStatus oldStatus = ticket.getStatus();
                 applyStatusChange(ticket, oldStatus, status);
                 ticket.setStatus(status);
-                return toResponse(ticketRepository.save(ticket));
+                Ticket updated = ticketRepository.save(ticket);
+                Map<String, Object> transition = new LinkedHashMap<>();
+                transition.put("fromStatusId", oldStatus == null ? null : oldStatus.getId());
+                transition.put("toStatusId", status.getId());
+                auditService.record(updated.getProject(), updated, "TICKET_TRANSITIONED", "TICKET", updated.getId(),
+                                transition);
+                publishTicketEvent(updated, "ticket.transitioned");
+                return toResponse(updated);
         }
 
         /**
@@ -784,6 +807,8 @@ public class TicketService {
                 ticket.setDeletedAt(LocalDateTime.now());
 
                 ticketRepository.save(ticket);
+                auditService.record(ticket.getProject(), ticket, "TICKET_DELETED", "TICKET", ticket.getId(), Map.of());
+                publishTicketEvent(ticket, "ticket.deleted");
         }
 
         // ============================================================
@@ -800,8 +825,11 @@ public class TicketService {
 
                 ticket.setDeletedAt(null);
 
-                return toResponse(
-                                ticketRepository.save(ticket));
+                Ticket restored = ticketRepository.save(ticket);
+                auditService.record(restored.getProject(), restored, "TICKET_RESTORED", "TICKET", restored.getId(),
+                                Map.of());
+                publishTicketEvent(restored, "ticket.restored");
+                return toResponse(restored);
         }
 
         // ============================================================
@@ -813,6 +841,8 @@ public class TicketService {
                 Ticket ticket = ticketRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
                 projectAccessService.requireManager(ticket.getProject());
+                auditService.record(ticket.getProject(), ticket, "TICKET_PERMANENTLY_DELETED", "TICKET", ticket.getId(),
+                                ticketSnapshot(ticket));
                 ticketRepository.delete(ticket);
         }
 
@@ -827,6 +857,34 @@ public class TicketService {
 
         private String blankToNull(String value) {
                 return value == null || value.isBlank() ? null : value.trim();
+        }
+
+        private Map<String, Object> ticketSnapshot(Ticket ticket) {
+                Map<String, Object> values = new LinkedHashMap<>();
+                values.put("name", ticket.getName());
+                values.put("statusId", ticket.getStatus() == null ? null : ticket.getStatus().getId());
+                values.put("priorityId", ticket.getPriority() == null ? null : ticket.getPriority().getId());
+                values.put("responsibleId", ticket.getResponsible() == null ? null : ticket.getResponsible().getId());
+                values.put("sprintId", ticket.getSprint() == null ? null : ticket.getSprint().getId());
+                values.put("epicId", ticket.getEpic() == null ? null : ticket.getEpic().getId());
+                values.put("parentId", ticket.getParent() == null ? null : ticket.getParent().getId());
+                values.put("estimation", ticket.getEstimation());
+                values.put("order", ticket.getOrder());
+                return values;
+        }
+
+        private Map<String, Object> changes(Map<String, Object> before, Map<String, Object> after) {
+                Map<String, Object> changed = new LinkedHashMap<>();
+                for (String key : before.keySet())
+                        if (!java.util.Objects.equals(before.get(key), after.get(key)))
+                                changed.put(key, Map.of("from", before.get(key) == null ? "" : before.get(key), "to",
+                                                after.get(key) == null ? "" : after.get(key)));
+                return changed;
+        }
+
+        private void publishTicketEvent(Ticket ticket, String type) {
+                realtimeEvents.publishProject(ticket.getProject().getId(), type,
+                                Map.of("ticketId", ticket.getId(), "ticketCode", ticket.getCode()));
         }
 
         private boolean canView(Ticket ticket) {

@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.projectmanagement.app.ticket.Ticket;
 import com.projectmanagement.app.auth.CurrentUserService;
+import com.projectmanagement.app.ticket.Ticket;
 
 import jakarta.validation.Valid;
 
@@ -23,257 +23,268 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/sprints")
 public class SprintController {
 
-    private final SprintService sprintService;
-    private final CurrentUserService currentUserService;
+        private final SprintService sprintService;
+        private final CurrentUserService currentUserService;
 
-    public SprintController(
-            SprintService sprintService,
-            CurrentUserService currentUserService) {
-        this.sprintService = sprintService;
-        this.currentUserService = currentUserService;
-    }
+        public SprintController(
+                        SprintService sprintService,
+                        CurrentUserService currentUserService) {
+                this.sprintService = sprintService;
+                this.currentUserService = currentUserService;
+        }
 
-    // =========================================================
-    // CREATE
-    // =========================================================
+        // =========================================================
+        // CREATE
+        // =========================================================
 
-    @PostMapping
-    public ResponseEntity<SprintResponse> create(
-            @Valid @RequestBody SprintRequest request,
-            Authentication authentication) {
+        @PostMapping
+        public ResponseEntity<SprintResponse> create(
+                        @Valid @RequestBody SprintRequest request,
+                        Authentication authentication) {
 
-        Long userId = getUserId(authentication);
+                Long userId = getUserId(authentication);
 
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(
-                        sprintService.create(
-                                request,
-                                userId));
-    }
+                return ResponseEntity
+                                .status(HttpStatus.CREATED)
+                                .body(
+                                                sprintService.create(
+                                                                request,
+                                                                userId));
+        }
 
-    // =========================================================
-    // GET ALL
-    // =========================================================
+        // =========================================================
+        // GET ALL
+        // =========================================================
 
-    @GetMapping
-    public ResponseEntity<List<SprintResponse>> getAll() {
+        @GetMapping
+        public ResponseEntity<List<SprintResponse>> getAll() {
 
-        return ResponseEntity.ok(
-                sprintService.getAll());
-    }
+                return ResponseEntity.ok(
+                                sprintService.getAll());
+        }
 
-    // =========================================================
-    // GET BY ID
-    // =========================================================
+        // =========================================================
+        // GET BY ID
+        // =========================================================
 
-    @GetMapping("/{id}")
-    public ResponseEntity<SprintResponse> getById(
-            @PathVariable Long id) {
+        @GetMapping("/{id}")
+        public ResponseEntity<SprintResponse> getById(
+                        @PathVariable Long id) {
 
-        return ResponseEntity.ok(
-                sprintService.getById(id));
-    }
+                return ResponseEntity.ok(
+                                sprintService.getById(id));
+        }
 
-    // =========================================================
-    // GET PROJECT SPRINTS
-    // =========================================================
+        // =========================================================
+        // GET PROJECT SPRINTS
+        // =========================================================
 
-    @GetMapping("/project/{projectId}")
-    public ResponseEntity<List<SprintResponse>> getByProject(
-            @PathVariable Long projectId) {
+        @GetMapping("/project/{projectId}")
+        public ResponseEntity<List<SprintResponse>> getByProject(
+                        @PathVariable Long projectId) {
 
-        return ResponseEntity.ok(
-                sprintService.getByProject(
-                        projectId));
-    }
+                return ResponseEntity.ok(
+                                sprintService.getByProject(
+                                                projectId));
+        }
 
-    // =========================================================
-    // UPDATE
-    // =========================================================
+        // =========================================================
+        // UPDATE
+        // =========================================================
 
-    @PutMapping("/{id}")
-    public ResponseEntity<SprintResponse> update(
-            @PathVariable Long id,
-            @Valid @RequestBody SprintRequest request,
-            Authentication authentication) {
+        @PutMapping("/{id}")
+        public ResponseEntity<SprintResponse> update(
+                        @PathVariable Long id,
+                        @Valid @RequestBody SprintRequest request,
+                        Authentication authentication) {
 
-        Long userId = getUserId(authentication);
+                Long userId = getUserId(authentication);
 
-        return ResponseEntity.ok(
-                sprintService.update(
-                        id,
-                        request,
-                        userId));
-    }
+                return ResponseEntity.ok(
+                                sprintService.update(
+                                                id,
+                                                request,
+                                                userId));
+        }
 
-    // =========================================================
-    // DELETE
-    // =========================================================
+        // =========================================================
+        // DELETE
+        // =========================================================
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(
-            @PathVariable Long id,
-            Authentication authentication) {
+        @DeleteMapping("/{id}")
+        public ResponseEntity<Void> delete(
+                        @PathVariable Long id,
+                        Authentication authentication) {
 
-        Long userId = getUserId(authentication);
+                Long userId = getUserId(authentication);
 
-        sprintService.delete(
-                id,
-                userId);
+                sprintService.delete(
+                                id,
+                                userId);
 
-        return ResponseEntity.noContent().build();
-    }
+                return ResponseEntity.noContent().build();
+        }
 
-    // =========================================================
-    // START
-    // =========================================================
+        // =========================================================
+        // START
+        // =========================================================
 
-    @PostMapping("/{id}/start")
-    public ResponseEntity<SprintResponse> start(
-            @PathVariable Long id,
-            Authentication authentication) {
+        @PostMapping("/{id}/start")
+        public ResponseEntity<SprintResponse> start(
+                        @PathVariable Long id,
+                        Authentication authentication) {
 
-        Long userId = getUserId(authentication);
+                Long userId = getUserId(authentication);
 
-        return ResponseEntity.ok(
-                sprintService.start(
-                        id,
-                        userId));
-    }
+                return ResponseEntity.ok(
+                                sprintService.start(
+                                                id,
+                                                userId));
+        }
 
-    // =========================================================
-    // COMPLETE
-    // =========================================================
+        // =========================================================
+        // COMPLETE
+        // =========================================================
 
-    @PostMapping("/{id}/complete")
-    public ResponseEntity<SprintResponse> complete(
-            @PathVariable Long id,
-            Authentication authentication) {
+        @PostMapping("/{id}/complete")
+        public ResponseEntity<SprintResponse> complete(
+                        @PathVariable Long id,
+                        Authentication authentication) {
 
-        Long userId = getUserId(authentication);
+                Long userId = getUserId(authentication);
 
-        return ResponseEntity.ok(
-                sprintService.complete(
-                        id,
-                        userId));
-    }
+                return ResponseEntity.ok(
+                                sprintService.complete(
+                                                id,
+                                                userId));
+        }
 
-    // =========================================================
-    // CANCEL
-    // =========================================================
+        @PostMapping("/{id}/complete-with-carry-over")
+        public ResponseEntity<SprintResponse> completeWithCarryOver(@PathVariable Long id,
+                        @Valid @RequestBody SprintCompletionRequest request, Authentication authentication) {
+                return ResponseEntity.ok(sprintService.complete(id, request, getUserId(authentication)));
+        }
 
-    @PostMapping("/{id}/cancel")
-    public ResponseEntity<SprintResponse> cancel(
-            @PathVariable Long id,
-            Authentication authentication) {
+        @GetMapping("/{id}/burndown")
+        public ResponseEntity<SprintBurndownResponse> burndown(@PathVariable Long id) {
+                return ResponseEntity.ok(sprintService.burndown(id));
+        }
 
-        Long userId = getUserId(authentication);
+        // =========================================================
+        // CANCEL
+        // =========================================================
 
-        return ResponseEntity.ok(
-                sprintService.cancel(
-                        id,
-                        userId));
-    }
+        @PostMapping("/{id}/cancel")
+        public ResponseEntity<SprintResponse> cancel(
+                        @PathVariable Long id,
+                        Authentication authentication) {
 
-    // =========================================================
-    // SPRINT TICKETS
-    // =========================================================
+                Long userId = getUserId(authentication);
 
-    @GetMapping("/{id}/tickets")
-    public ResponseEntity<List<Ticket>> getSprintTickets(
-            @PathVariable Long id) {
+                return ResponseEntity.ok(
+                                sprintService.cancel(
+                                                id,
+                                                userId));
+        }
 
-        return ResponseEntity.ok(
-                sprintService.getSprintTickets(id));
-    }
+        // =========================================================
+        // SPRINT TICKETS
+        // =========================================================
 
-    // =========================================================
-    // PROJECT BACKLOG
-    // =========================================================
+        @GetMapping("/{id}/tickets")
+        public ResponseEntity<List<Ticket>> getSprintTickets(
+                        @PathVariable Long id) {
 
-    @GetMapping("/project/{projectId}/backlog")
-    public ResponseEntity<List<Ticket>> getBacklog(
-            @PathVariable Long projectId) {
+                return ResponseEntity.ok(
+                                sprintService.getSprintTickets(id));
+        }
 
-        return ResponseEntity.ok(
-                sprintService.getBacklog(
-                        projectId));
-    }
+        // =========================================================
+        // PROJECT BACKLOG
+        // =========================================================
 
-    // =========================================================
-    // ADD TICKET
-    // =========================================================
+        @GetMapping("/project/{projectId}/backlog")
+        public ResponseEntity<List<Ticket>> getBacklog(
+                        @PathVariable Long projectId) {
 
-    @PostMapping("/{sprintId}/tickets/{ticketId}")
-    public ResponseEntity<Ticket> addTicket(
-            @PathVariable Long sprintId,
-            @PathVariable Long ticketId,
-            Authentication authentication) {
+                return ResponseEntity.ok(
+                                sprintService.getBacklog(
+                                                projectId));
+        }
 
-        Long userId = getUserId(authentication);
+        // =========================================================
+        // ADD TICKET
+        // =========================================================
 
-        return ResponseEntity.ok(
-                sprintService.addTicket(
-                        sprintId,
-                        ticketId,
-                        userId));
-    }
+        @PostMapping("/{sprintId}/tickets/{ticketId}")
+        public ResponseEntity<Ticket> addTicket(
+                        @PathVariable Long sprintId,
+                        @PathVariable Long ticketId,
+                        Authentication authentication) {
 
-    // =========================================================
-    // REMOVE TICKET
-    // =========================================================
+                Long userId = getUserId(authentication);
 
-    @DeleteMapping("/{sprintId}/tickets/{ticketId}")
-    public ResponseEntity<Ticket> removeTicket(
-            @PathVariable Long sprintId,
-            @PathVariable Long ticketId,
-            Authentication authentication) {
+                return ResponseEntity.ok(
+                                sprintService.addTicket(
+                                                sprintId,
+                                                ticketId,
+                                                userId));
+        }
 
-        Long userId = getUserId(authentication);
+        // =========================================================
+        // REMOVE TICKET
+        // =========================================================
 
-        return ResponseEntity.ok(
-                sprintService.removeTicket(
-                        sprintId,
-                        ticketId,
-                        userId));
-    }
+        @DeleteMapping("/{sprintId}/tickets/{ticketId}")
+        public ResponseEntity<Ticket> removeTicket(
+                        @PathVariable Long sprintId,
+                        @PathVariable Long ticketId,
+                        Authentication authentication) {
 
-    // =========================================================
-    // MOVE TO BACKLOG
-    // =========================================================
+                Long userId = getUserId(authentication);
 
-    @PostMapping("/tickets/{ticketId}/backlog")
-    public ResponseEntity<Ticket> moveToBacklog(
-            @PathVariable Long ticketId,
-            Authentication authentication) {
+                return ResponseEntity.ok(
+                                sprintService.removeTicket(
+                                                sprintId,
+                                                ticketId,
+                                                userId));
+        }
 
-        Long userId = getUserId(authentication);
+        // =========================================================
+        // MOVE TO BACKLOG
+        // =========================================================
 
-        return ResponseEntity.ok(
-                sprintService.moveToBacklog(
-                        ticketId,
-                        userId));
-    }
+        @PostMapping("/tickets/{ticketId}/backlog")
+        public ResponseEntity<Ticket> moveToBacklog(
+                        @PathVariable Long ticketId,
+                        Authentication authentication) {
 
-    // =========================================================
-    // STATISTICS
-    // =========================================================
+                Long userId = getUserId(authentication);
 
-    @GetMapping("/{id}/statistics")
-    public ResponseEntity<SprintStatisticsResponse> statistics(
-            @PathVariable Long id) {
+                return ResponseEntity.ok(
+                                sprintService.moveToBacklog(
+                                                ticketId,
+                                                userId));
+        }
 
-        return ResponseEntity.ok(
-                sprintService.statistics(id));
-    }
+        // =========================================================
+        // STATISTICS
+        // =========================================================
 
-    // =========================================================
-    // USER ID
-    // =========================================================
+        @GetMapping("/{id}/statistics")
+        public ResponseEntity<SprintStatisticsResponse> statistics(
+                        @PathVariable Long id) {
 
-    private Long getUserId(
-            Authentication authentication) {
-        return currentUserService.getCurrentUserId();
-    }
+                return ResponseEntity.ok(
+                                sprintService.statistics(id));
+        }
+
+        // =========================================================
+        // USER ID
+        // =========================================================
+
+        private Long getUserId(
+                        Authentication authentication) {
+                return currentUserService.getCurrentUserId();
+        }
 }

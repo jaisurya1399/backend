@@ -2,6 +2,7 @@ package com.projectmanagement.app.notification;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -13,6 +14,7 @@ import com.projectmanagement.app.ticket.TicketStatus;
 import com.projectmanagement.app.ticket.TicketSubscriberRepository;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
+import com.projectmanagement.app.realtime.RealtimeEventService;
 
 @Service
 public class TicketNotificationService {
@@ -21,13 +23,16 @@ public class TicketNotificationService {
     private final UserRepository userRepository;
     private final ProjectUserRepository projectUserRepository;
     private final TicketSubscriberRepository subscriberRepository;
+    private final RealtimeEventService realtimeEvents;
 
     public TicketNotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
-            ProjectUserRepository projectUserRepository, TicketSubscriberRepository subscriberRepository) {
+            ProjectUserRepository projectUserRepository, TicketSubscriberRepository subscriberRepository,
+            RealtimeEventService realtimeEvents) {
         this.notificationRepository = notificationRepository;
         this.userRepository = userRepository;
         this.projectUserRepository = projectUserRepository;
         this.subscriberRepository = subscriberRepository;
+        this.realtimeEvents = realtimeEvents;
     }
 
     public void notifyComment(Ticket ticket, User author, String content) {
@@ -67,9 +72,11 @@ public class TicketNotificationService {
     }
 
     private void save(User recipient, String type, Ticket ticket, String message) {
-        notificationRepository.save(Notification.builder().type(type).notifiableType("USER")
+        Notification notification = notificationRepository.save(Notification.builder().type(type).notifiableType("USER")
                 .notifiableId(recipient.getId()).data("{\"ticketId\":" + ticket.getId() + ",\"ticketCode\":\""
                         + ticket.getCode() + "\",\"message\":\"" + message.replace("\"", "\\\"") + "\"}")
                 .build());
+        realtimeEvents.publishUser(recipient.getId(), "notification", Map.of("id", notification.getId().toString(), "type", type,
+                "ticketId", ticket.getId(), "ticketCode", ticket.getCode(), "message", message));
     }
 }

@@ -5,8 +5,10 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projectmanagement.app.audit.AuditService;
 import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.notification.TicketNotificationService;
+import com.projectmanagement.app.realtime.RealtimeEventService;
 import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
@@ -25,6 +27,8 @@ public class TicketCommentService {
     private final ProjectAccessService projectAccessService;
     private final TicketSubscriberRepository ticketSubscriberRepository;
     private final TicketNotificationService ticketNotificationService;
+    private final AuditService auditService;
+    private final RealtimeEventService realtimeEvents;
 
     @Transactional(readOnly = true)
     public List<TicketCommentResponse> getAll() {
@@ -99,6 +103,10 @@ public class TicketCommentService {
         TicketComment saved = ticketCommentRepository.save(comment);
         subscribeIfNeeded(ticket, user);
         ticketNotificationService.notifyComment(ticket, user, saved.getContent());
+        auditService.record(ticket.getProject(), ticket, "COMMENT_CREATED", "TICKET_COMMENT", saved.getId(),
+                java.util.Map.of("commentId", saved.getId()));
+        realtimeEvents.publishProject(ticket.getProject().getId(), "comment.created",
+                java.util.Map.of("ticketId", ticket.getId(), "commentId", saved.getId()));
         return mapToResponse(saved);
     }
 
@@ -117,8 +125,12 @@ public class TicketCommentService {
             throw new RuntimeException("A comment cannot be moved to another ticket");
         comment.setContent(request.getContent());
 
-        return mapToResponse(
-                ticketCommentRepository.save(comment));
+        TicketComment updated = ticketCommentRepository.save(comment);
+        auditService.record(updated.getTicket().getProject(), updated.getTicket(), "COMMENT_UPDATED", "TICKET_COMMENT",
+                updated.getId(), java.util.Map.of("commentId", updated.getId()));
+        realtimeEvents.publishProject(updated.getTicket().getProject().getId(), "comment.updated",
+                java.util.Map.of("ticketId", updated.getTicket().getId(), "commentId", updated.getId()));
+        return mapToResponse(updated);
     }
 
     public void softDelete(Long id) {
@@ -133,6 +145,10 @@ public class TicketCommentService {
         comment.setDeletedAt(java.time.LocalDateTime.now());
 
         ticketCommentRepository.save(comment);
+        auditService.record(comment.getTicket().getProject(), comment.getTicket(), "COMMENT_DELETED", "TICKET_COMMENT",
+                comment.getId(), java.util.Map.of("commentId", comment.getId()));
+        realtimeEvents.publishProject(comment.getTicket().getProject().getId(), "comment.deleted",
+                java.util.Map.of("ticketId", comment.getTicket().getId(), "commentId", comment.getId()));
     }
 
     public void restore(Long id) {

@@ -84,6 +84,36 @@ time in hours, and completed-sprint velocity.
 See [API.md](API.md) for the endpoint index, authentication convention, errors,
 and production environment variables.
 
+## Tests
+
+Unit tests cover JWT issuer validation and the workspace/project RBAC matrix. Run
+them with `mvn test`; integration tests require a PostgreSQL test database matching
+the `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` values in the `test` profile.
+
+## Sprint completion and burndown
+
+`POST /api/sprints/{id}/complete-with-carry-over` completes an active sprint and
+returns unfinished issues to the backlog by default. Pass `carryOverSprintId` to
+move them to another planned/active sprint instead. `GET /api/sprints/{id}/burndown`
+returns daily scope, completed, and remaining estimate points; sprint completion
+stores an immutable issue snapshot so historical charts remain available after
+carry-over.
+
+## Audit events
+
+`GET /api/projects/{projectId}/audit-events` and
+`GET /api/tickets/{ticketId}/audit-events` return immutable, RBAC-protected
+history. Ticket lifecycle, field changes, status transitions, and comment changes
+record the authenticated actor and structured change data.
+
+## Realtime streams
+
+Authenticated clients can use Server-Sent Events (SSE):
+`GET /api/realtime/projects/{projectId}` streams ticket and comment events after
+the project RBAC check, while `GET /api/realtime/notifications` streams only the
+current user's notifications. Reconnect automatically after the 30-minute stream
+timeout.
+
 ## Building
 
 ```bash
