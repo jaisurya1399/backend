@@ -1,11 +1,11 @@
 package com.projectmanagement.app.auth;
 
-import java.util.List;
 import java.util.Arrays;
+import java.util.List;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -54,7 +54,8 @@ public class SecurityConfig {
                                 .csrf(csrf -> csrf.disable())
 
                                 .headers(headers -> headers
-                                                .contentTypeOptions(contentType -> {})
+                                                .contentTypeOptions(contentType -> {
+                                                })
                                                 .frameOptions(frame -> frame.sameOrigin())
                                                 .referrerPolicy(referrer -> referrer.policy(
                                                                 org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
@@ -74,7 +75,11 @@ public class SecurityConfig {
                                 .authorizeHttpRequests(auth -> auth
                                                 .requestMatchers(
                                                                 "/api/auth/login",
-                                                                "/api/auth/signup")
+                                                                "/api/auth/signup",
+                                                                "/api/auth/refresh",
+                                                                "/api/auth/password-reset/request",
+                                                                "/api/auth/password-reset/confirm",
+                                                                "/api/auth/email-verification/confirm")
                                                 .permitAll()
 
                                                 .anyRequest().authenticated())
