@@ -227,10 +227,10 @@ public interface TicketRepository
       Long milestoneId);
 
   @Query("""
-          SELECT COUNT(t)
-          FROM Ticket t
-          WHERE t.milestone.id = :milestoneId
-            AND UPPER(t.status.name) = 'DONE'
+        SELECT COUNT(t)
+        FROM Ticket t
+        WHERE t.milestone.id = :milestoneId
+          AND LOWER(TRIM(t.status.name)) IN ('done', 'completed')
       """)
   long countCompletedByMilestoneId(
       @Param("milestoneId") Long milestoneId);
