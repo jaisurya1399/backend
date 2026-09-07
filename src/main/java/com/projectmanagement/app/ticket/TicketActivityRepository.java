@@ -22,4 +22,6 @@ public interface TicketActivityRepository
         long countByUserId(Long userId);
 
         void deleteByTicketId(Long ticketId);
+
+        List<TicketActivity> findTop10ByUserIdOrderByCreatedAtDesc(Long userId);
 }
