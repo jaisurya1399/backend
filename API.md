@@ -60,3 +60,14 @@ Login is rate-limited by both normalized email and client IP: five failed attemp
 15-minute window by default. Configure `AUTH_LOGIN_MAX_ATTEMPTS` and
 `AUTH_LOGIN_WINDOW_MINUTES` as required. Set `TRUST_FORWARDED_HEADERS=true` only when
 the API is behind a trusted reverse proxy that overwrites `X-Forwarded-For`.
+
+Ticket assignment, status-change, comment, subscriber, and mention notifications are
+available in-app and via SSE. Set `MAIL_ENABLED=true` and
+`NOTIFICATION_EMAIL_ENABLED=true` to also deliver those ticket notifications by email;
+emails are sent only after the ticket transaction has committed.
+
+Native browser push is optional. Enable it with `WEB_PUSH_ENABLED=true` and configure
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT`. The frontend obtains the
+public key from `GET /web-push/vapid-public-key`, then registers its browser
+`PushSubscription` through authenticated `POST /web-push-subscriptions` with
+`endpoint`, `p256dh`, and `auth`; it can unregister using the matching `DELETE` endpoint.

@@ -79,7 +79,8 @@ public class SecurityConfig {
                                                                 "/api/auth/refresh",
                                                                 "/api/auth/password-reset/request",
                                                                 "/api/auth/password-reset/confirm",
-                                                                "/api/auth/email-verification/confirm")
+                                                                "/api/auth/email-verification/confirm",
+                                                                "/api/web-push/vapid-public-key")
                                                 .permitAll()
 
                                                 .anyRequest().authenticated())
