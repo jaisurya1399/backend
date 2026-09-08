@@ -1,5 +1,6 @@
 package com.projectmanagement.app.ticket;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +9,8 @@ public interface TicketHourRepository
                 extends JpaRepository<TicketHour, Long> {
 
         List<TicketHour> findByTicketId(Long ticketId);
+
+        List<TicketHour> findByCreatedAtBetweenOrderByCreatedAtDesc(LocalDateTime from, LocalDateTime to);
 
         List<TicketHour> findByTicketIdOrderByCreatedAtDesc(Long ticketId);
 
