@@ -164,6 +164,45 @@ public class EpicController {
         }
 
         // =========================================================
+        // EPIC PROGRESS
+        // =========================================================
+
+        @GetMapping("/{id}/progress")
+        @PreAuthorize("hasAuthority('epic.view') or hasRole('ADMIN')")
+        public ResponseEntity<EpicProgressResponse> getEpicProgress(
+                        @PathVariable Long id) {
+
+                return ResponseEntity.ok(
+                                epicService.getEpicProgress(id));
+        }
+
+        // =========================================================
+        // EPIC BURNDOWN
+        // =========================================================
+
+        @GetMapping("/{id}/burndown")
+        @PreAuthorize("hasAuthority('epic.view') or hasRole('ADMIN')")
+        public ResponseEntity<EpicBurndownResponse> getEpicBurndown(
+                        @PathVariable Long id) {
+
+                return ResponseEntity.ok(
+                                epicService.getEpicBurndown(id));
+        }
+
+        // =========================================================
+        // EPIC REPORT
+        // =========================================================
+
+        @GetMapping("/{id}/report")
+        @PreAuthorize("hasAuthority('epic.view') or hasRole('ADMIN')")
+        public ResponseEntity<EpicReportResponse> getEpicReport(
+                        @PathVariable Long id) {
+
+                return ResponseEntity.ok(
+                                epicService.getEpicReport(id));
+        }
+
+        // =========================================================
         // CREATE
         // =========================================================
 

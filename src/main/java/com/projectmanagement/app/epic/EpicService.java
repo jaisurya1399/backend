@@ -1,13 +1,23 @@
 package com.projectmanagement.app.epic;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.project.ProjectRepository;
+import com.projectmanagement.app.ticket.Ticket;
+import com.projectmanagement.app.ticket.TicketRepository;
+import com.projectmanagement.app.ticket.TicketStatusCategory;
 
 @Service
 @Transactional
@@ -15,12 +25,15 @@ public class EpicService {
 
     private final EpicRepository epicRepository;
     private final ProjectRepository projectRepository;
+    private final TicketRepository ticketRepository;
 
     public EpicService(
             EpicRepository epicRepository,
-            ProjectRepository projectRepository) {
+            ProjectRepository projectRepository,
+            TicketRepository ticketRepository) {
         this.epicRepository = epicRepository;
         this.projectRepository = projectRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     // =========================================================
@@ -352,6 +365,230 @@ public class EpicService {
         validateEpic(parentId);
 
         return epicRepository.countByParentId(parentId);
+    }
+
+
+    // =========================================================
+    // EPIC PROGRESS
+    // =========================================================
+
+    @Transactional(readOnly = true)
+    public EpicProgressResponse getEpicProgress(Long epicId) {
+        Epic epic = getEpicEntity(epicId);
+        List<Ticket> tickets = getActiveEpicTickets(epic);
+
+        long total = tickets.size();
+        long completed = countByCategory(tickets, TicketStatusCategory.DONE);
+        long inProgress = countByCategory(tickets, TicketStatusCategory.IN_PROGRESS);
+        long todo = countByCategory(tickets, TicketStatusCategory.TODO);
+        long backlog = countByCategory(tickets, TicketStatusCategory.BACKLOG);
+        long cancelled = countByCategory(tickets, TicketStatusCategory.CANCELLED);
+
+        BigDecimal totalEstimation = sumEstimation(tickets);
+        BigDecimal completedEstimation = sumEstimationByCategory(tickets, TicketStatusCategory.DONE);
+        BigDecimal remainingEstimation = totalEstimation.subtract(completedEstimation);
+
+        return EpicProgressResponse.builder()
+                .epicId(epic.getId())
+                .epicName(epic.getName())
+                .projectId(epic.getProject().getId())
+                .totalIssues(total)
+                .completedIssues(completed)
+                .inProgressIssues(inProgress)
+                .todoIssues(todo)
+                .backlogIssues(backlog)
+                .cancelledIssues(cancelled)
+                .totalEstimation(totalEstimation)
+                .completedEstimation(completedEstimation)
+                .remainingEstimation(remainingEstimation)
+                .completionPercentage(percentage(completed, total))
+                .estimationCompletionPercentage(percentage(completedEstimation, totalEstimation))
+                .build();
+    }
+
+    // =========================================================
+    // EPIC BURNDOWN
+    // =========================================================
+
+    @Transactional(readOnly = true)
+    public EpicBurndownResponse getEpicBurndown(Long epicId) {
+        Epic epic = getEpicEntity(epicId);
+        List<Ticket> tickets = getActiveEpicTickets(epic);
+
+        LocalDate start = epic.getStartsAt();
+        LocalDate end = epic.getEndsAt();
+        LocalDate today = LocalDate.now();
+        LocalDate chartEnd = today.isBefore(end) ? today : end;
+        if (chartEnd.isBefore(start)) {
+            chartEnd = start;
+        }
+
+        BigDecimal total = sumEstimation(tickets);
+        long days = Math.max(1, ChronoUnit.DAYS.between(start, end));
+        List<EpicBurndownResponse.Point> points = new ArrayList<>();
+
+        for (LocalDate date = start; !date.isAfter(chartEnd); date = date.plusDays(1)) {
+            BigDecimal completedByDate = completedEstimationByDate(tickets, date);
+            BigDecimal remaining = total.subtract(completedByDate).max(BigDecimal.ZERO);
+            long elapsed = Math.max(0, ChronoUnit.DAYS.between(start, date));
+            BigDecimal ideal = total.subtract(
+                    total.multiply(BigDecimal.valueOf(elapsed))
+                            .divide(BigDecimal.valueOf(days), 2, RoundingMode.HALF_UP))
+                    .max(BigDecimal.ZERO);
+
+            points.add(EpicBurndownResponse.Point.builder()
+                    .date(date)
+                    .idealRemaining(scale(ideal))
+                    .remaining(scale(remaining))
+                    .completed(scale(completedByDate))
+                    .build());
+        }
+
+        return EpicBurndownResponse.builder()
+                .epicId(epic.getId())
+                .epicName(epic.getName())
+                .startsAt(start)
+                .endsAt(end)
+                .totalEstimation(scale(total))
+                .points(points)
+                .build();
+    }
+
+    // =========================================================
+    // EPIC REPORT
+    // =========================================================
+
+    @Transactional(readOnly = true)
+    public EpicReportResponse getEpicReport(Long epicId) {
+        Epic epic = getEpicEntity(epicId);
+        List<Ticket> tickets = getActiveEpicTickets(epic);
+
+        long total = tickets.size();
+        long completed = countByCategory(tickets, TicketStatusCategory.DONE);
+        long inProgress = countByCategory(tickets, TicketStatusCategory.IN_PROGRESS);
+        long todo = countByCategory(tickets, TicketStatusCategory.TODO);
+        long backlog = countByCategory(tickets, TicketStatusCategory.BACKLOG);
+        long cancelled = countByCategory(tickets, TicketStatusCategory.CANCELLED);
+
+        BigDecimal totalEstimation = sumEstimation(tickets);
+        BigDecimal completedEstimation = sumEstimationByCategory(tickets, TicketStatusCategory.DONE);
+
+        Map<String, Long> statuses = new LinkedHashMap<>();
+        Map<String, Long> priorities = new LinkedHashMap<>();
+        List<EpicReportResponse.IssueSummary> issues = new ArrayList<>();
+
+        for (Ticket ticket : tickets) {
+            String statusName = ticket.getStatus() != null ? ticket.getStatus().getName() : "Unknown";
+            String priorityName = ticket.getPriority() != null ? ticket.getPriority().getName() : "Unknown";
+            statuses.merge(statusName, 1L, Long::sum);
+            priorities.merge(priorityName, 1L, Long::sum);
+
+            issues.add(EpicReportResponse.IssueSummary.builder()
+                    .id(ticket.getId())
+                    .code(ticket.getCode())
+                    .name(ticket.getName())
+                    .status(statusName)
+                    .statusCategory(ticket.getStatus() != null && ticket.getStatus().getCategory() != null
+                            ? ticket.getStatus().getCategory().name() : null)
+                    .priority(priorityName)
+                    .estimation(ticket.getEstimation() == null ? BigDecimal.ZERO : ticket.getEstimation())
+                    .responsibleId(ticket.getResponsible() != null ? ticket.getResponsible().getId() : null)
+                    .responsibleName(ticket.getResponsible() != null ? ticket.getResponsible().getName() : null)
+                    .createdAt(ticket.getCreatedAt())
+                    .resolvedAt(ticket.getResolvedAt())
+                    .build());
+        }
+
+        return EpicReportResponse.builder()
+                .epicId(epic.getId())
+                .epicName(epic.getName())
+                .projectId(epic.getProject().getId())
+                .projectName(epic.getProject().getName())
+                .totalIssues(total)
+                .completedIssues(completed)
+                .inProgressIssues(inProgress)
+                .todoIssues(todo)
+                .backlogIssues(backlog)
+                .cancelledIssues(cancelled)
+                .totalEstimation(scale(totalEstimation))
+                .completedEstimation(scale(completedEstimation))
+                .remainingEstimation(scale(totalEstimation.subtract(completedEstimation).max(BigDecimal.ZERO)))
+                .completionPercentage(percentage(completed, total))
+                .estimationCompletionPercentage(percentage(completedEstimation, totalEstimation))
+                .statusDistribution(statuses)
+                .priorityDistribution(priorities)
+                .issues(issues)
+                .build();
+    }
+
+    private Epic getEpicEntity(Long epicId) {
+        return epicRepository.findById(epicId)
+                .orElseThrow(() -> new RuntimeException("Epic not found with id: " + epicId));
+    }
+
+    private List<Ticket> getActiveEpicTickets(Epic epic) {
+        return ticketRepository.findByProjectIdAndEpicIdAndDeletedAtIsNull(
+                epic.getProject().getId(), epic.getId());
+    }
+
+    private long countByCategory(List<Ticket> tickets, TicketStatusCategory category) {
+        return tickets.stream()
+                .filter(t -> t.getStatus() != null && category == t.getStatus().getCategory())
+                .count();
+    }
+
+    private BigDecimal sumEstimation(List<Ticket> tickets) {
+        return tickets.stream()
+                .map(Ticket::getEstimation)
+                .filter(e -> e != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal sumEstimationByCategory(List<Ticket> tickets, TicketStatusCategory category) {
+        return tickets.stream()
+                .filter(t -> t.getStatus() != null && category == t.getStatus().getCategory())
+                .map(Ticket::getEstimation)
+                .filter(e -> e != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal completedEstimationByDate(List<Ticket> tickets, LocalDate date) {
+        return tickets.stream()
+                .filter(t -> isCompletedOnOrBefore(t, date))
+                .map(Ticket::getEstimation)
+                .filter(e -> e != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private boolean isCompletedOnOrBefore(Ticket ticket, LocalDate date) {
+        if (ticket.getStatus() == null || ticket.getStatus().getCategory() != TicketStatusCategory.DONE) {
+            return false;
+        }
+        if (ticket.getResolvedAt() != null) {
+            return !ticket.getResolvedAt().toLocalDate().isAfter(date);
+        }
+        // If an old completed ticket has no resolved_at, its exact historical completion
+        // date cannot be reconstructed. Treat it as completed on the current day.
+        return !LocalDate.now().isAfter(date);
+    }
+
+    private double percentage(long value, long total) {
+        if (total <= 0) return 0D;
+        return round((value * 100D) / total);
+    }
+
+    private double percentage(BigDecimal value, BigDecimal total) {
+        if (total == null || total.compareTo(BigDecimal.ZERO) <= 0) return 0D;
+        return round(value.multiply(BigDecimal.valueOf(100))
+                .divide(total, 2, RoundingMode.HALF_UP).doubleValue());
+    }
+
+    private double round(double value) {
+        return Math.round(value * 100D) / 100D;
+    }
+
+    private BigDecimal scale(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
     }
 
     // =========================================================
