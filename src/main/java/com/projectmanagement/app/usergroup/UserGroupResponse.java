@@ -1,7 +1,7 @@
-package com.projectmanagement.app.user;
+package com.projectmanagement.app.usergroup;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,13 +14,11 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class UserResponse {
+public class UserGroupResponse {
     private Long id;
     private String name;
-    private String email;
-    private LocalDateTime emailVerifiedAt;
+    private String description;
+    private List<UserGroupMemberResponse> members;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private UUID creationToken;
-    private boolean hasProfileImage;
 }

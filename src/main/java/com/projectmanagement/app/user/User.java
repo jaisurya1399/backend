@@ -3,8 +3,20 @@ package com.projectmanagement.app.user;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Index;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "users", indexes = {
@@ -45,6 +57,15 @@ public class User {
 
     @Column(name = "remember_token", length = 100)
     private String rememberToken;
+
+    @Column(name = "profile_image_data", columnDefinition = "BYTEA")
+    private byte[] profileImageData;
+
+    @Column(name = "profile_image_content_type", length = 100)
+    private String profileImageContentType;
+
+    @Column(name = "profile_image_file_name", length = 255)
+    private String profileImageFileName;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
