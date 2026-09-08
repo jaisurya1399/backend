@@ -141,7 +141,7 @@ public class TicketAttachmentService {
                                 comment.getTicket().getProject());
 
                 return attachmentRepository
-                                .findByCommentIdOrderByCreatedAtDesc(commentId)
+                                .findByComment_IdOrderByCreatedAtDesc(commentId)
                                 .stream()
                                 .map(this::toResponse)
                                 .toList();
@@ -149,14 +149,6 @@ public class TicketAttachmentService {
 
         /**
          * Upload attachment to a comment.
-         *
-         * IMPORTANT:
-         * The current TicketAttachment entity does not expose
-         * a comment(TicketComment) builder method.
-         *
-         * Therefore this method cannot directly associate the
-         * attachment with the comment until the TicketAttachment
-         * entity contains a comment field/mapping.
          */
         @Transactional
         public TicketAttachmentResponse uploadToComment(
@@ -178,19 +170,6 @@ public class TicketAttachmentService {
 
                 validateFile(file);
 
-                /*
-                 * Until TicketAttachment contains a comment field,
-                 * comment attachments cannot be persisted using
-                 * attachment.comment(comment).
-                 *
-                 * The existing attachment entity supports ticket
-                 * association, so the attachment is saved against
-                 * the comment's ticket.
-                 *
-                 * If your repository requires a real comment_id,
-                 * the TicketAttachment entity must first be updated
-                 * with a TicketComment relationship.
-                 */
                 try {
 
                         String originalName = sanitizeName(
@@ -206,6 +185,7 @@ public class TicketAttachmentService {
 
                         TicketAttachment attachment = TicketAttachment.builder()
                                         .ticket(comment.getTicket())
+                                        .comment(comment)
                                         .fileName(originalName)
                                         .originalName(originalName)
                                         .contentType(contentType)
@@ -292,6 +272,10 @@ public class TicketAttachmentService {
                                 .id(attachment.getId())
                                 .ticketId(
                                                 attachment.getTicket().getId())
+                                .commentId(
+                                                attachment.getComment() != null
+                                                                ? attachment.getComment().getId()
+                                                                : null)
                                 .fileName(
                                                 attachment.getFileName())
                                 .originalName(

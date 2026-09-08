@@ -3,6 +3,7 @@ package com.projectmanagement.app.ticketattachment;
 import java.time.LocalDateTime;
 
 import com.projectmanagement.app.ticket.Ticket;
+import com.projectmanagement.app.ticket.TicketComment;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,7 +27,8 @@ import lombok.Setter;
 @Entity
 @Table(name = "ticket_attachments", indexes = {
         @Index(name = "idx_ticket_attachments_ticket_id", columnList = "ticket_id"),
-        @Index(name = "idx_ticket_attachments_created_at", columnList = "created_at")
+        @Index(name = "idx_ticket_attachments_created_at", columnList = "created_at"),
+        @Index(name = "idx_ticket_attachments_comment_id", columnList = "comment_id")
 })
 @Getter
 @Setter
@@ -43,6 +45,10 @@ public class TicketAttachment {
     @JoinColumn(name = "ticket_id", nullable = false, foreignKey = @ForeignKey(name = "ticket_attachments_ticket_id_foreign"))
     private Ticket ticket;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "comment_id", foreignKey = @ForeignKey(name = "fk_ticket_attachments_comment"))
+    private TicketComment comment;
+
     @Column(name = "file_name", nullable = false, length = 255)
     private String fileName;
 
@@ -55,12 +61,6 @@ public class TicketAttachment {
     @Column(name = "file_size", nullable = false)
     private Long fileSize;
 
-    /*
-     * PostgreSQL BYTEA
-     *
-     * IMPORTANT:
-     * Do NOT use @Lob here.
-     */
     @Column(name = "file_data", nullable = false, columnDefinition = "BYTEA")
     private byte[] fileData;
 
@@ -72,7 +72,6 @@ public class TicketAttachment {
 
     @PrePersist
     protected void onCreate() {
-
         LocalDateTime now = LocalDateTime.now();
 
         if (createdAt == null) {
@@ -86,7 +85,6 @@ public class TicketAttachment {
 
     @PreUpdate
     protected void onUpdate() {
-
         updatedAt = LocalDateTime.now();
     }
 }

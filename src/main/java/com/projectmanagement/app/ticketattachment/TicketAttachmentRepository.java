@@ -9,12 +9,11 @@ import org.springframework.stereotype.Repository;
 public interface TicketAttachmentRepository
                 extends JpaRepository<TicketAttachment, Long> {
 
-        List<TicketAttachment> findByTicketIdOrderByCreatedAtDesc(
-                        Long ticketId);
+        List<TicketAttachment> findByTicketIdOrderByCreatedAtDesc(Long ticketId);
 
         long countByTicketId(Long ticketId);
 
-        List<TicketAttachment> findByCommentIdOrderByCreatedAtDesc(Long commentId);
+        List<TicketAttachment> findByComment_IdOrderByCreatedAtDesc(Long commentId);
 
         void deleteByTicketId(Long ticketId);
 }
