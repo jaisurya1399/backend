@@ -1,7 +1,8 @@
 # Project Management Backend
 
-Spring Boot 3 (Java 21) REST API for project/ticket/sprint management, with JWT auth,
-PostgreSQL + Flyway migrations.
+Spring Boot 3.3.4 (Java 21) REST API for workspaces, projects, tickets, sprints,
+timesheets, and notifications. Persistence is PostgreSQL with Flyway. Auth is
+JWT access tokens plus rotating refresh tokens.
 
 ## Requirements
 
@@ -11,21 +12,44 @@ PostgreSQL + Flyway migrations.
 
 ## Configuration
 
-All environment-specific and secret values are read from environment variables
-(with dev-friendly local defaults baked in so it still runs out of the box):
+Values below are from `src/main/resources/application.properties`. Spring Boot
+relaxed binding still lets you override them with environment variables
+(for example `SPRING_DATASOURCE_URL`, `JWT_SECRET`, `APP_CORS_ALLOWED_ORIGINS`).
 
-| Variable                 | Default                                       | Purpose                                                          |
-| ------------------------ | --------------------------------------------- | ---------------------------------------------------------------- |
-| `SPRING_PROFILES_ACTIVE` | `dev`                                         | `dev` or `prod`                                                  |
-| `SERVER_PORT`            | `8080`                                        | HTTP port                                                        |
-| `DB_URL`                 | `jdbc:postgresql://localhost:5432/pmt`        | Postgres JDBC URL                                                |
-| `DB_USERNAME`            | `postgres`                                    | DB user                                                          |
-| `DB_PASSWORD`            | `postgres`                                    | DB password                                                      |
-| `JWT_SECRET`             | (dev placeholder in `application.properties`) | HMAC signing key — **must** be overridden in any real deployment |
-| `JWT_EXPIRATION`         | `86400000` (24h, ms)                          | Token lifetime                                                   |
+The names `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` are **not** wired in the main
+app properties. They are only used in the **test** profile
+(`src/test/resources/application-test.properties`).
 
-**Never deploy with the default `JWT_SECRET` or `DB_PASSWORD`.** Set real values via
-env vars / your secrets manager.
+| Property | Local default | Env example | Purpose |
+| --- | --- | --- | --- |
+| `server.port` | `8080` | `SERVER_PORT` | HTTP port |
+| `spring.datasource.url` | `jdbc:postgresql://localhost:5432/pmt` | `SPRING_DATASOURCE_URL` | Postgres JDBC URL |
+| `spring.datasource.username` | `postgres` | `SPRING_DATASOURCE_USERNAME` | DB user |
+| `spring.datasource.password` | `12345` | `SPRING_DATASOURCE_PASSWORD` | DB password |
+| `jwt.secret` | committed HMAC key | `JWT_SECRET` | Access-token signing key (override outside local) |
+| `jwt.expiration` | `86400000` (24h, ms) | `JWT_EXPIRATION` | Access-token lifetime |
+| `jwt.issuer` | `project-management-api` | `JWT_ISSUER` | JWT issuer claim |
+| `auth.refresh-expiration-days` | `7` | `AUTH_REFRESH_EXPIRATION_DAYS` | Refresh-token lifetime |
+| `auth.password-reset-expiration-minutes` | `10` | `AUTH_PASSWORD_RESET_EXPIRATION_MINUTES` | Reset token lifetime |
+| `auth.email-verification-expiration-hours` | `24` | `AUTH_EMAIL_VERIFICATION_EXPIRATION_HOURS` | Email-verify token lifetime |
+| `auth.login.max-attempts` | `5` | `AUTH_LOGIN_MAX_ATTEMPTS` | Failed-login cap per window |
+| `auth.login.window-minutes` | `15` | `AUTH_LOGIN_WINDOW_MINUTES` | Login rate-limit window |
+| `app.cors.allowed-origins` | `http://localhost:5173,http://localhost:3000` | `APP_CORS_ALLOWED_ORIGINS` | Browser origins |
+| `app.frontend-url` | `http://localhost:5173` | `APP_FRONTEND_URL` | Links in mail templates |
+| `app.mail.enabled` | `false` | `APP_MAIL_ENABLED` | SMTP for reset/verify/ticket mail |
+| `app.mail.from` | `no-reply@projectmanagement.local` | `APP_MAIL_FROM` | From address |
+| `app.notification.email.enabled` | `false` | `APP_NOTIFICATION_EMAIL_ENABLED` | Ticket notification emails |
+| `app.notification.web-push.enabled` | `false` | `APP_NOTIFICATION_WEB_PUSH_ENABLED` | Browser push |
+| `app.security.trust-forwarded-headers` | `false` | `APP_SECURITY_TRUST_FORWARDED_HEADERS` | Trust `X-Forwarded-For` only behind a proxy |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | empty / mailto default | same | Required when web push is enabled |
+
+Profiles:
+
+- Default / `dev` (`application-dev.properties`): verbose SQL and error bodies
+- `prod`: quiet logs, no stack traces in HTTP errors
+- `test`: `pmt_test` via `DB_URL` / `DB_USERNAME` / `DB_PASSWORD`
+
+Do not ship the committed `jwt.secret` or local DB password.
 
 ## Running locally
 
@@ -34,118 +58,87 @@ createdb pmt
 mvn spring-boot:run
 ```
 
-Flyway will run all migrations in `src/main/resources/db/migration` on startup and
-seed a default admin user:
+Flyway runs `src/main/resources/db/migration` on startup. The default admin is
+seeded in `V20__create_default_admin_user.sql`:
 
-- email: `admin@example.com`
-- password: `Admin@123`
+- email: `jaisurya1399@gmail.com`
+- password: `password` (bcrypt hash stored in that migration)
 
-**Change this password immediately** if you deploy this anywhere beyond your own machine.
+Change that account if this database is shared.
 
-## Workspace API
+Uploads: multipart max 50 MB per file / 100 MB per request.
 
-Projects now belong to a workspace. Run Flyway before using the API; existing data is
-moved to a `default` workspace. Create a workspace with `POST /api/workspaces`, then
-include its `workspaceId` when creating or updating a project. Workspace owners/admins
-can manage members at `/api/workspaces/{workspaceId}/members`; ownership can be
-transferred with `POST /api/workspaces/{workspaceId}/ownership/{newOwnerId}`.
+## Workspaces and issues
 
-Project members use one of three roles: `ADMIN`, `MEMBER`, or `VIEWER`. A `VIEWER`
-can read project issues, a `MEMBER` can create and edit issues, and an `ADMIN` (or
-the project owner) manages project settings, memberships, and destructive actions.
+Projects belong to a workspace. After Flyway, existing rows sit on a `default`
+workspace. Create one with `POST /api/workspaces`, then send `workspaceId` on
+project create/update.
 
-Issues can be nested as sub-tasks by passing `parentId` in the ticket payload. Use
-`GET /api/tickets/project/{projectId}/root` for root issues and
-`GET /api/tickets/{ticketId}/children` for direct sub-tasks.
+Workspace owners/admins manage members at `/api/workspaces/{id}/members`.
+Transfer ownership with `POST /api/workspaces/{id}/ownership/{newOwnerId}`.
 
-Ticket statuses have categories: `BACKLOG`, `TODO`, `IN_PROGRESS`, `DONE`, and
-`CANCELLED`. Use `PUT /api/tickets/{ticketId}/transition` with a `statusId` to
-perform a tracked status change. `GET /api/tickets/project/{projectId}/board`
-returns active issues grouped into ordered Kanban columns.
+Project member roles: `ADMIN`, `MEMBER`, `VIEWER`.
 
-For atomic drag/drop and backlog grooming, call
-`PUT /api/tickets/project/{projectId}/plan` with an ordered `ticketIds` list.
-Optionally provide `statusId` to move a board column, `sprintId` to plan a sprint,
-or `moveToBacklog: true` to remove the issues from their sprint.
+Sub-tasks: set `parentId` on a ticket. Root issues:
+`GET /api/tickets/project/{projectId}/root`. Children:
+`GET /api/tickets/{id}/children`.
 
-Use `GET /api/tickets/project/{projectId}/filter` for paginated issue search. It
-accepts `q`, `statusId`, `priorityId`, `responsibleId`, `sprintId`, `epicId`,
-`labelId`, `rootOnly`, `page`, `size`, `sort`, and `direction`. Personal saved
-filters are available under `/api/projects/{projectId}/ticket-views`.
+Status categories: `BACKLOG`, `TODO`, `IN_PROGRESS`, `DONE`, `CANCELLED`.
+Move a ticket with `PUT /api/tickets/{id}/transition` and `{ "statusId": ... }`.
+Kanban columns: `GET /api/tickets/project/{projectId}/board`.
 
-Comments now use the authenticated user as author (the deprecated `userId` request
-field is ignored). Authors are auto-subscribed; ticket assignees, subscribers, and
-valid `@email@example.com` mentions receive in-app notifications.
+Bulk plan/rank: `PUT /api/tickets/project/{projectId}/plan` with `ticketIds`,
+optional `statusId`, `sprintId`, or `moveToBacklog: true`.
 
-Project reporting is available at `GET /api/projects/{projectId}/analytics`. It
-returns issue health, estimate completion, assignee workload, average lead/cycle
-time in hours, and completed-sprint velocity.
+Filter: `GET /api/tickets/project/{projectId}/filter` (`q`, `statusId`,
+`priorityId`, `responsibleId`, `sprintId`, `epicId`, `labelId`, `rootOnly`,
+`page`, `size`, `sort`, `direction`). Saved views:
+`/api/projects/{projectId}/ticket-views`.
 
-See [API.md](API.md) for the endpoint index, authentication convention, errors,
-and production environment variables.
+Comment `userId` is ignored; the author is the authenticated user. Assignees,
+subscribers, and `@email` mentions get in-app notifications.
+
+Analytics: `GET /api/projects/{projectId}/analytics`.
+
+## Sprints
+
+`POST /api/sprints/{id}/complete-with-carry-over` completes an active sprint and
+sends unfinished issues to the backlog unless `carryOverSprintId` is set.
+`GET /api/sprints/{id}/burndown` returns daily remaining/completed points.
+Completion writes an issue snapshot for historical charts.
+
+## Audit and realtime
+
+- `GET /api/projects/{projectId}/audit-events`
+- `GET /api/tickets/{ticketId}/audit-events`
+- SSE `GET /api/realtime/projects/{projectId}` (ticket/comment events)
+- SSE `GET /api/realtime/notifications` (current user only)
+
+Streams time out after 30 minutes; reconnect. EventSource clients should pass
+the access token as `access_token` query param (or `Authorization: Bearer` for
+non-EventSource clients).
 
 ## Tests
 
-Unit tests cover JWT issuer validation and the workspace/project RBAC matrix. Run
-them with `mvn test`; integration tests require a PostgreSQL test database matching
-the `DB_URL`, `DB_USERNAME`, and `DB_PASSWORD` values in the `test` profile.
+```bash
+mvn test
+```
 
-## Sprint completion and burndown
-
-`POST /api/sprints/{id}/complete-with-carry-over` completes an active sprint and
-returns unfinished issues to the backlog by default. Pass `carryOverSprintId` to
-move them to another planned/active sprint instead. `GET /api/sprints/{id}/burndown`
-returns daily scope, completed, and remaining estimate points; sprint completion
-stores an immutable issue snapshot so historical charts remain available after
-carry-over.
-
-## Audit events
-
-`GET /api/projects/{projectId}/audit-events` and
-`GET /api/tickets/{ticketId}/audit-events` return immutable, RBAC-protected
-history. Ticket lifecycle, field changes, status transitions, and comment changes
-record the authenticated actor and structured change data.
-
-## Realtime streams
-
-Authenticated clients can use Server-Sent Events (SSE):
-`GET /api/realtime/projects/{projectId}` streams ticket and comment events after
-the project RBAC check, while `GET /api/realtime/notifications` streams only the
-current user's notifications. Reconnect automatically after the 30-minute stream
-timeout.
+Unit tests cover JWT validation and project access. Integration-style tests
+need Postgres matching the `test` profile (`pmt_test` by default).
 
 ## Building
 
 ```bash
 mvn clean package
-java -jar target/project-management-backend.jar
+java -jar target/project-management-backend-0.0.1-SNAPSHOT.jar
 ```
 
-## Notes on this version
+## API index
 
-This copy was cleaned up from an earlier drop that was missing a build file and had a
-few rough edges:
+Public (no JWT): login, signup, refresh, password-reset request/confirm,
+email-verification confirm, and `GET /api/web-push/vapid-public-key`.
 
-- Added `pom.xml` (Spring Boot 3.3.4, Java 21, jjwt 0.12.6, PostgreSQL, Flyway, Lombok) —
-  the project previously had no build descriptor at all.
-- Removed a leftover `security/` package containing three empty, unused duplicate
-  files (`JwtService`, `JwtAuthenticationFilter`, `CustomUserDetailsService`) that
-  shadowed the real, working versions in `auth/`.
-- Removed a debug `System.out.println` in `main()` that logged a BCrypt hash on
-  every startup.
-- Split logging/error-detail configuration properly between `application-dev.properties`
-  (verbose SQL/logging, full error detail) and `application-prod.properties` (quiet,
-  no stack traces to clients) — previously both files were empty and everything was
-  hardcoded on in the base `application.properties`, including in production.
-- Moved the DB password and JWT secret to environment-variable overrides instead of
-  being committed as plain values.
-- Replaced a real personal email address and its default seed password in
-  `V20__create_default_admin_user.sql` with a generic `admin@example.com` placeholder.
-- Fixed two migration filename issues: `V24__create_sprints_and_ticket_sprint.sql.sql`
-  → `.sql` (was double-extensioned), and `V22__Create_daily_scrums.sql` →
-  `V22__create_daily_scrums.sql` (case consistency with the rest of the series).
-- Added a minimal `ProjectManagementApplicationTests` smoke test and `test` profile.
-- Removed five empty, unreferenced placeholder packages/folders (`common/util`,
-  `common/exception`, `common/response`, `roadmap`, `timelog`) that contained no
-  files and weren't imported anywhere — leftover scaffolding for features that
-  were never built.
+Everything else needs `Authorization: Bearer <accessToken>`.
+
+Full route list, error body, mail, and push setup: [API.md](API.md).
