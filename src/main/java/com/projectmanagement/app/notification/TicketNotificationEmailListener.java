@@ -17,18 +17,22 @@ public class TicketNotificationEmailListener {
     private final JavaMailSender mailSender;
     private final String from;
     private final String frontendUrl;
+    private final NotificationPreferenceService preferenceService;
 
     public TicketNotificationEmailListener(
             JavaMailSender mailSender,
             @Value("${app.mail.from}") String from,
-            @Value("${app.frontend-url}") String frontendUrl) {
+            @Value("${app.frontend-url}") String frontendUrl,
+            NotificationPreferenceService preferenceService) {
         this.mailSender = mailSender;
         this.from = from;
         this.frontendUrl = frontendUrl;
+        this.preferenceService = preferenceService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void deliver(TicketNotificationCreatedEvent event) {
+        if (!preferenceService.isEmailEnabled(event.recipient().getId(), event.type())) return;
         SimpleMailMessage email = new SimpleMailMessage();
         email.setFrom(from);
         email.setTo(event.recipient().getEmail());

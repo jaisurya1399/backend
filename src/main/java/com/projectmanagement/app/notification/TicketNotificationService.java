@@ -26,16 +26,18 @@ public class TicketNotificationService {
         private final TicketSubscriberRepository subscriberRepository;
         private final RealtimeEventService realtimeEvents;
         private final ApplicationEventPublisher eventPublisher;
+        private final NotificationPreferenceService preferenceService;
 
         public TicketNotificationService(NotificationRepository notificationRepository, UserRepository userRepository,
                         ProjectUserRepository projectUserRepository, TicketSubscriberRepository subscriberRepository,
-                        RealtimeEventService realtimeEvents, ApplicationEventPublisher eventPublisher) {
+                        RealtimeEventService realtimeEvents, ApplicationEventPublisher eventPublisher, NotificationPreferenceService preferenceService) {
                 this.notificationRepository = notificationRepository;
                 this.userRepository = userRepository;
                 this.projectUserRepository = projectUserRepository;
                 this.subscriberRepository = subscriberRepository;
                 this.realtimeEvents = realtimeEvents;
                 this.eventPublisher = eventPublisher;
+                this.preferenceService = preferenceService;
         }
 
         public void notifyComment(Ticket ticket, User author, String content) {
@@ -45,13 +47,17 @@ public class TicketNotificationService {
                 subscriberRepository.findByTicketId(ticket.getId())
                                 .forEach(subscription -> recipients.add(subscription.getUser()));
                 Matcher matcher = MENTION.matcher(content);
+                Set<Long> mentionedIds = new HashSet<>();
                 while (matcher.find())
                         userRepository.findByEmail(matcher.group(1).toLowerCase())
                                         .filter(user -> isProjectUser(ticket, user))
-                                        .ifPresent(recipients::add);
-                recipients.stream().filter(user -> !user.getId().equals(author.getId())).forEach(
-                                user -> save(user, "TICKET_COMMENT", ticket,
-                                                author.getName() + " commented on " + ticket.getCode()));
+                                        .ifPresent(user -> { mentionedIds.add(user.getId()); recipients.add(user); });
+                recipients.stream().filter(user -> !user.getId().equals(author.getId())).forEach(user -> {
+                        boolean mentioned = mentionedIds.contains(user.getId());
+                        save(user, mentioned ? "TICKET_MENTION" : "TICKET_COMMENT", ticket,
+                                        mentioned ? author.getName() + " mentioned you on " + ticket.getCode()
+                                                  : author.getName() + " commented on " + ticket.getCode());
+                });
         }
 
         public void notifyStatusChange(Ticket ticket, User actor, TicketStatus oldStatus, TicketStatus newStatus) {
@@ -79,6 +85,7 @@ public class TicketNotificationService {
         }
 
         private void save(User recipient, String type, Ticket ticket, String message) {
+                if (!preferenceService.isInAppEnabled(recipient.getId(), type)) return;
                 Notification notification = notificationRepository
                                 .save(Notification.builder().type(type).notifiableType("USER")
                                                 .notifiableId(recipient.getId())
