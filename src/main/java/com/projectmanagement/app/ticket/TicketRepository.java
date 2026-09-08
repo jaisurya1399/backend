@@ -3,273 +3,423 @@ package com.projectmanagement.app.ticket;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface TicketRepository
-    extends JpaRepository<Ticket, Long> {
+public interface TicketRepository extends JpaRepository<Ticket, Long> {
+
+    // ============================================================
+    // ACTIVE / DELETED
+    // ============================================================
 
-  // ============================================================
-  // ACTIVE / DELETED
-  // ============================================================
+    List<Ticket> findByDeletedAtIsNull();
 
-  List<Ticket> findByDeletedAtIsNull();
+    List<Ticket> findByDeletedAtIsNotNull();
 
-  List<Ticket> findByDeletedAtIsNotNull();
+    // ============================================================
+    // WORKSPACE
+    // ============================================================
 
-  // ============================================================
-  // PROJECT
-  // ============================================================
+    /**
+     * Returns all tickets belonging to projects inside the workspace.
+     * Includes both active and deleted tickets.
+     */
+    @Query("""
+            SELECT t
+            FROM Ticket t
+            WHERE t.project.workspace.id = :workspaceId
+            ORDER BY t.id DESC
+            """)
+    List<Ticket> findByWorkspaceId(
+            @Param("workspaceId") Long workspaceId);
 
-  List<Ticket> findByProjectId(Long projectId);
+    /**
+     * Returns only active tickets belonging to projects inside the workspace.
+     */
+    @Query("""
+            SELECT t
+            FROM Ticket t
+            WHERE t.project.workspace.id = :workspaceId
+              AND t.deletedAt IS NULL
+            ORDER BY t.id DESC
+            """)
+    List<Ticket> findByWorkspaceIdAndDeletedAtIsNull(
+            @Param("workspaceId") Long workspaceId);
 
-  List<Ticket> findByProjectIdAndDeletedAtIsNull(
-      Long projectId);
+    /**
+     * Returns only deleted tickets belonging to projects inside the workspace.
+     */
+    @Query("""
+            SELECT t
+            FROM Ticket t
+            WHERE t.project.workspace.id = :workspaceId
+              AND t.deletedAt IS NOT NULL
+            ORDER BY t.id DESC
+            """)
+    List<Ticket> findByWorkspaceIdAndDeletedAtIsNotNull(
+            @Param("workspaceId") Long workspaceId);
 
-  long countByProjectId(Long projectId);
+    long countByProjectWorkspaceId(Long workspaceId);
 
-  long countByProjectIdAndDeletedAtIsNull(
-      Long projectId);
+    long countByProjectWorkspaceIdAndDeletedAtIsNull(Long workspaceId);
 
-  // ============================================================
-  // OWNER
-  // ============================================================
+    // ============================================================
+    // PROJECT
+    // ============================================================
 
-  List<Ticket> findByOwnerId(Long ownerId);
+    List<Ticket> findByProjectId(Long projectId);
 
-  List<Ticket> findByOwnerIdAndDeletedAtIsNull(
-      Long ownerId);
+    List<Ticket> findByProjectIdAndDeletedAtIsNull(
+            Long projectId);
 
-  long countByOwnerId(Long ownerId);
+    long countByProjectId(Long projectId);
 
-  // ============================================================
-  // RESPONSIBLE
-  // ============================================================
+    long countByProjectIdAndDeletedAtIsNull(
+            Long projectId);
 
-  List<Ticket> findByResponsibleId(Long responsibleId);
+    // ============================================================
+    // OWNER
+    // ============================================================
 
-  List<Ticket> findByResponsibleIdAndDeletedAtIsNull(
-      Long responsibleId);
+    List<Ticket> findByOwnerId(Long ownerId);
 
-  long countByResponsibleId(Long responsibleId);
+    List<Ticket> findByOwnerIdAndDeletedAtIsNull(
+            Long ownerId);
 
-  // ============================================================
-  // STATUS
-  // ============================================================
+    long countByOwnerId(Long ownerId);
 
-  List<Ticket> findByStatusId(Long statusId);
+    // ============================================================
+    // RESPONSIBLE
+    // ============================================================
 
-  List<Ticket> findByStatusIdAndDeletedAtIsNull(
-      Long statusId);
+    List<Ticket> findByResponsibleId(Long responsibleId);
 
-  long countByStatusId(Long statusId);
+    List<Ticket> findByResponsibleIdAndDeletedAtIsNull(
+            Long responsibleId);
 
-  // ============================================================
-  // TYPE
-  // ============================================================
+    long countByResponsibleId(Long responsibleId);
 
-  List<Ticket> findByTypeId(Long typeId);
+    // ============================================================
+    // STATUS
+    // ============================================================
 
-  List<Ticket> findByTypeIdAndDeletedAtIsNull(
-      Long typeId);
+    List<Ticket> findByStatusId(Long statusId);
 
-  // ============================================================
-  // PRIORITY
-  // ============================================================
+    List<Ticket> findByStatusIdAndDeletedAtIsNull(
+            Long statusId);
 
-  List<Ticket> findByPriorityId(Long priorityId);
+    long countByStatusId(Long statusId);
 
-  List<Ticket> findByPriorityIdAndDeletedAtIsNull(
-      Long priorityId);
+    // ============================================================
+    // TYPE
+    // ============================================================
 
-  // ============================================================
-  // EPIC
-  // ============================================================
+    List<Ticket> findByTypeId(Long typeId);
 
-  List<Ticket> findByEpicId(Long epicId);
+    List<Ticket> findByTypeIdAndDeletedAtIsNull(
+            Long typeId);
 
-  List<Ticket> findByEpicIdAndDeletedAtIsNull(
-      Long epicId);
+    // ============================================================
+    // PRIORITY
+    // ============================================================
 
-  // ============================================================
-  // PROJECT + STATUS
-  // ============================================================
+    List<Ticket> findByPriorityId(Long priorityId);
 
-  List<Ticket> findByProjectIdAndStatusId(
-      Long projectId,
-      Long statusId);
+    List<Ticket> findByPriorityIdAndDeletedAtIsNull(
+            Long priorityId);
 
-  List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNull(
-      Long projectId,
-      Long statusId);
+    // ============================================================
+    // EPIC
+    // ============================================================
 
-  // ============================================================
-  // PROJECT + TYPE
-  // ============================================================
+    List<Ticket> findByEpicId(Long epicId);
 
-  List<Ticket> findByProjectIdAndTypeId(
-      Long projectId,
-      Long typeId);
+    List<Ticket> findByEpicIdAndDeletedAtIsNull(
+            Long epicId);
 
-  // ============================================================
-  // PROJECT + PRIORITY
-  // ============================================================
+    // ============================================================
+    // PROJECT + STATUS
+    // ============================================================
 
-  List<Ticket> findByProjectIdAndPriorityId(
-      Long projectId,
-      Long priorityId);
+    List<Ticket> findByProjectIdAndStatusId(
+            Long projectId,
+            Long statusId);
 
-  // ============================================================
-  // PROJECT + EPIC
-  // ============================================================
+    List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNull(
+            Long projectId,
+            Long statusId);
 
-  List<Ticket> findByProjectIdAndEpicId(
-      Long projectId,
-      Long epicId);
+    // ============================================================
+    // PROJECT + TYPE
+    // ============================================================
 
-  List<Ticket> findByProjectIdAndEpicIdAndDeletedAtIsNull(
-      Long projectId,
-      Long epicId);
+    List<Ticket> findByProjectIdAndTypeId(
+            Long projectId,
+            Long typeId);
 
-  // ============================================================
-  // CODE
-  // ============================================================
+    // ============================================================
+    // PROJECT + PRIORITY
+    // ============================================================
 
-  Optional<Ticket> findByCode(String code);
-
-  Optional<Ticket> findByCodeAndDeletedAtIsNull(
-      String code);
-
-  boolean existsByCode(String code);
-
-  boolean existsByCodeAndIdNot(
-      String code,
-      Long id);
-
-  // ============================================================
-  // NAME
-  // ============================================================
-
-  List<Ticket> findByNameContainingIgnoreCase(
-      String name);
-
-  List<Ticket> findByProjectIdAndNameContainingIgnoreCase(
-      Long projectId,
-      String name);
-
-  // ============================================================
-  // ORDER
-  // ============================================================
-
-  List<Ticket> findByProjectIdOrderByOrderAsc(
-      Long projectId);
-
-  List<Ticket> findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(
-      Long projectId);
-
-  // ============================================================
-  // PROJECT + STATUS + ORDER
-  // ============================================================
-
-  List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNullOrderByOrderAsc(
-      Long projectId,
-      Long statusId);
-
-  // ============================================================
-  // DELETE BY PROJECT
-  // ============================================================
-
-  void deleteByProjectId(Long projectId);
-
-  // ============================================================
-  // DELETE BY EPIC
-  // ============================================================
-
-  void deleteByEpicId(Long epicId);
-
-  List<Ticket> findBySprintIdOrderByOrderAsc(Long sprintId);
-
-  List<Ticket> findByProjectIdAndSprintIsNullOrderByOrderAsc(
-      Long projectId);
-
-  List<Ticket> findByParentIdAndDeletedAtIsNullOrderByOrderAscIdAsc(Long parentId);
-
-  List<Ticket> findByProjectIdAndParentIsNullAndDeletedAtIsNullOrderByOrderAscIdAsc(Long projectId);
-
-  long countByParentIdAndDeletedAtIsNull(Long parentId);
-
-  long countBySprintId(Long sprintId);
-
-  long countByProjectIdAndSprintIsNull(Long projectId);
-
-  @Query(value = """
-      SELECT DISTINCT t FROM Ticket t LEFT JOIN t.labels l
-      WHERE t.project.id = :projectId AND t.deletedAt IS NULL
-      AND (:q IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
-           OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%')))
-      AND (:statusId IS NULL OR t.status.id = :statusId)
-      AND (:priorityId IS NULL OR t.priority.id = :priorityId)
-      AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
-      AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
-      AND (:epicId IS NULL OR t.epic.id = :epicId)
-      AND (:labelId IS NULL OR l.id = :labelId)
-      AND (:rootOnly = false OR t.parent IS NULL)
-      """, countQuery = """
-      SELECT COUNT(DISTINCT t) FROM Ticket t LEFT JOIN t.labels l
-      WHERE t.project.id = :projectId AND t.deletedAt IS NULL
-      AND (:q IS NULL OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
-           OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%')))
-      AND (:statusId IS NULL OR t.status.id = :statusId)
-      AND (:priorityId IS NULL OR t.priority.id = :priorityId)
-      AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
-      AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
-      AND (:epicId IS NULL OR t.epic.id = :epicId)
-      AND (:labelId IS NULL OR l.id = :labelId)
-      AND (:rootOnly = false OR t.parent IS NULL)
-      """)
-  Page<Ticket> searchActiveByProject(@Param("projectId") Long projectId, @Param("q") String q,
-      @Param("statusId") Long statusId, @Param("priorityId") Long priorityId, @Param("responsibleId") Long responsibleId,
-      @Param("sprintId") Long sprintId, @Param("epicId") Long epicId, @Param("labelId") Long labelId,
-      @Param("rootOnly") boolean rootOnly, Pageable pageable);
-
-  @Query("""
-          SELECT t
-          FROM Ticket t
-          JOIN t.labels l
-          WHERE l.id = :labelId
-          ORDER BY t.id DESC
-      """)
-  List<Ticket> findTicketsByLabelId(
-      @Param("labelId") Long labelId);
-
-  @Query("""
-          SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
-          FROM Ticket t
-          JOIN t.labels l
-          WHERE t.id = :ticketId
-            AND l.id = :labelId
-      """)
-  boolean existsLabelOnTicket(
-      @Param("ticketId") Long ticketId,
-      @Param("labelId") Long labelId);
-
-  List<Ticket> findByMilestoneIdOrderByOrderAscIdAsc(
-      Long milestoneId);
-
-  long countByMilestoneId(
-      Long milestoneId);
-
-  @Query("""
-        SELECT COUNT(t)
-        FROM Ticket t
-        WHERE t.milestone.id = :milestoneId
-          AND LOWER(TRIM(t.status.name)) IN ('done', 'completed')
-      """)
-  long countCompletedByMilestoneId(
-      @Param("milestoneId") Long milestoneId);
+    List<Ticket> findByProjectIdAndPriorityId(
+            Long projectId,
+            Long priorityId);
+
+    // ============================================================
+    // PROJECT + EPIC
+    // ============================================================
+
+    List<Ticket> findByProjectIdAndEpicId(
+            Long projectId,
+            Long epicId);
+
+    List<Ticket> findByProjectIdAndEpicIdAndDeletedAtIsNull(
+            Long projectId,
+            Long epicId);
+
+    // ============================================================
+    // CODE
+    // ============================================================
+
+    Optional<Ticket> findByCode(String code);
+
+    Optional<Ticket> findByCodeAndDeletedAtIsNull(
+            String code);
+
+    boolean existsByCode(String code);
+
+    boolean existsByCodeAndIdNot(
+            String code,
+            Long id);
+
+    // ============================================================
+    // NAME
+    // ============================================================
+
+    List<Ticket> findByNameContainingIgnoreCase(
+            String name);
+
+    List<Ticket> findByProjectIdAndNameContainingIgnoreCase(
+            Long projectId,
+            String name);
+
+    // ============================================================
+    // ORDER
+    // ============================================================
+
+    List<Ticket> findByProjectIdOrderByOrderAsc(
+            Long projectId);
+
+    List<Ticket> findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(
+            Long projectId);
+
+    // ============================================================
+    // PROJECT + STATUS + ORDER
+    // ============================================================
+
+    List<Ticket> findByProjectIdAndStatusIdAndDeletedAtIsNullOrderByOrderAsc(
+            Long projectId,
+            Long statusId);
+
+    // ============================================================
+    // DELETE BY PROJECT
+    // ============================================================
+
+    void deleteByProjectId(Long projectId);
+
+    // ============================================================
+    // DELETE BY EPIC
+    // ============================================================
+
+    void deleteByEpicId(Long epicId);
+
+    // ============================================================
+    // SPRINT
+    // ============================================================
+
+    List<Ticket> findBySprintIdOrderByOrderAsc(
+            Long sprintId);
+
+    List<Ticket> findByProjectIdAndSprintIsNullOrderByOrderAsc(
+            Long projectId);
+
+    long countBySprintId(Long sprintId);
+
+    long countByProjectIdAndSprintIsNull(
+            Long projectId);
+
+    // ============================================================
+    // PARENT / CHILD
+    // ============================================================
+
+    List<Ticket> findByParentIdAndDeletedAtIsNullOrderByOrderAscIdAsc(
+            Long parentId);
+
+    List<Ticket> findByProjectIdAndParentIsNullAndDeletedAtIsNullOrderByOrderAscIdAsc(
+            Long projectId);
+
+    long countByParentIdAndDeletedAtIsNull(
+            Long parentId);
+
+    // ============================================================
+    // SERVER-SIDE PROJECT FILTER
+    // ============================================================
+
+    @Query(value = """
+            SELECT DISTINCT t
+            FROM Ticket t
+            LEFT JOIN t.labels l
+            WHERE t.project.id = :projectId
+              AND t.deletedAt IS NULL
+              AND (
+                    :q IS NULL
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%'))
+                  )
+              AND (:statusId IS NULL OR t.status.id = :statusId)
+              AND (:priorityId IS NULL OR t.priority.id = :priorityId)
+              AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
+              AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
+              AND (:epicId IS NULL OR t.epic.id = :epicId)
+              AND (:labelId IS NULL OR l.id = :labelId)
+              AND (:rootOnly = false OR t.parent IS NULL)
+            """, countQuery = """
+            SELECT COUNT(DISTINCT t)
+            FROM Ticket t
+            LEFT JOIN t.labels l
+            WHERE t.project.id = :projectId
+              AND t.deletedAt IS NULL
+              AND (
+                    :q IS NULL
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%'))
+                  )
+              AND (:statusId IS NULL OR t.status.id = :statusId)
+              AND (:priorityId IS NULL OR t.priority.id = :priorityId)
+              AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
+              AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
+              AND (:epicId IS NULL OR t.epic.id = :epicId)
+              AND (:labelId IS NULL OR l.id = :labelId)
+              AND (:rootOnly = false OR t.parent IS NULL)
+            """)
+    Page<Ticket> searchActiveByProject(
+            @Param("projectId") Long projectId,
+            @Param("q") String q,
+            @Param("statusId") Long statusId,
+            @Param("priorityId") Long priorityId,
+            @Param("responsibleId") Long responsibleId,
+            @Param("sprintId") Long sprintId,
+            @Param("epicId") Long epicId,
+            @Param("labelId") Long labelId,
+            @Param("rootOnly") boolean rootOnly,
+            Pageable pageable);
+
+    // ============================================================
+    // WORKSPACE + PROJECT FILTER
+    // ============================================================
+
+    @Query(value = """
+            SELECT DISTINCT t
+            FROM Ticket t
+            LEFT JOIN t.labels l
+            WHERE t.project.id = :projectId
+              AND t.project.workspace.id = :workspaceId
+              AND t.deletedAt IS NULL
+              AND (
+                    :q IS NULL
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%'))
+                  )
+              AND (:statusId IS NULL OR t.status.id = :statusId)
+              AND (:priorityId IS NULL OR t.priority.id = :priorityId)
+              AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
+              AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
+              AND (:epicId IS NULL OR t.epic.id = :epicId)
+              AND (:labelId IS NULL OR l.id = :labelId)
+              AND (:rootOnly = false OR t.parent IS NULL)
+            """, countQuery = """
+            SELECT COUNT(DISTINCT t)
+            FROM Ticket t
+            LEFT JOIN t.labels l
+            WHERE t.project.id = :projectId
+              AND t.project.workspace.id = :workspaceId
+              AND t.deletedAt IS NULL
+              AND (
+                    :q IS NULL
+                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%'))
+                    OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%'))
+                  )
+              AND (:statusId IS NULL OR t.status.id = :statusId)
+              AND (:priorityId IS NULL OR t.priority.id = :priorityId)
+              AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
+              AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
+              AND (:epicId IS NULL OR t.epic.id = :epicId)
+              AND (:labelId IS NULL OR l.id = :labelId)
+              AND (:rootOnly = false OR t.parent IS NULL)
+            """)
+    Page<Ticket> searchActiveByWorkspaceAndProject(
+            @Param("workspaceId") Long workspaceId,
+            @Param("projectId") Long projectId,
+            @Param("q") String q,
+            @Param("statusId") Long statusId,
+            @Param("priorityId") Long priorityId,
+            @Param("responsibleId") Long responsibleId,
+            @Param("sprintId") Long sprintId,
+            @Param("epicId") Long epicId,
+            @Param("labelId") Long labelId,
+            @Param("rootOnly") boolean rootOnly,
+            Pageable pageable);
+
+    // ============================================================
+    // LABEL
+    // ============================================================
+
+    @Query("""
+            SELECT t
+            FROM Ticket t
+            JOIN t.labels l
+            WHERE l.id = :labelId
+            ORDER BY t.id DESC
+            """)
+    List<Ticket> findTicketsByLabelId(
+            @Param("labelId") Long labelId);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END
+            FROM Ticket t
+            JOIN t.labels l
+            WHERE t.id = :ticketId
+              AND l.id = :labelId
+            """)
+    boolean existsLabelOnTicket(
+            @Param("ticketId") Long ticketId,
+            @Param("labelId") Long labelId);
+
+    // ============================================================
+    // MILESTONE
+    // ============================================================
+
+    List<Ticket> findByMilestoneIdOrderByOrderAscIdAsc(
+            Long milestoneId);
+
+    long countByMilestoneId(
+            Long milestoneId);
+
+    @Query("""
+            SELECT COUNT(t)
+            FROM Ticket t
+            WHERE t.milestone.id = :milestoneId
+              AND LOWER(TRIM(t.status.name)) IN ('done', 'completed')
+            """)
+    long countCompletedByMilestoneId(
+            @Param("milestoneId") Long milestoneId);
 }

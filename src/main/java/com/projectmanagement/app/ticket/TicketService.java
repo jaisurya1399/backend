@@ -27,10 +27,10 @@ import com.projectmanagement.app.label.LabelRepository;
 import com.projectmanagement.app.milestone.Milestone;
 import com.projectmanagement.app.milestone.MilestoneRepository;
 import com.projectmanagement.app.notification.TicketNotificationService;
-import com.projectmanagement.app.realtime.RealtimeEventService;
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.project.ProjectRepository;
+import com.projectmanagement.app.realtime.RealtimeEventService;
 import com.projectmanagement.app.sprint.Sprint;
 import com.projectmanagement.app.sprint.SprintRepository;
 import com.projectmanagement.app.sprint.SprintStatus;
@@ -108,6 +108,13 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getAll(Long workspaceId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
         // ============================================================
         // GET ACTIVE
         // ============================================================
@@ -123,6 +130,13 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getAllActive(Long workspaceId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceIdAndDeletedAtIsNull(workspaceId).stream()
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
         // ============================================================
         // GET DELETED
         // ============================================================
@@ -136,6 +150,13 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getDeleted(Long workspaceId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceIdAndDeletedAtIsNotNull(workspaceId).stream()
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -188,6 +209,16 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getMyTasks(Long workspaceId) {
+                validateWorkspaceId(workspaceId);
+                Long currentUserId = currentUserService.getCurrentUserId();
+                return ticketRepository.findByWorkspaceIdAndDeletedAtIsNull(workspaceId).stream()
+                                .filter(t -> t.getResponsible() != null)
+                                .filter(t -> currentUserId.equals(t.getResponsible().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
         // ============================================================
         // GET BY ID
         // ============================================================
@@ -201,6 +232,16 @@ public class TicketService {
                                                 "Ticket not found with id: " + id));
                 projectAccessService.requireView(ticket.getProject());
 
+                return toResponse(ticket);
+        }
+
+        @Transactional(readOnly = true)
+        public TicketResponse getById(Long id, Long workspaceId) {
+                validateWorkspaceId(workspaceId);
+                Ticket ticket = ticketRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
+                validateTicketInWorkspace(ticket, workspaceId);
+                projectAccessService.requireView(ticket.getProject());
                 return toResponse(ticket);
         }
 
@@ -220,6 +261,16 @@ public class TicketService {
                 return toResponse(ticket);
         }
 
+        @Transactional(readOnly = true)
+        public TicketResponse getByCode(String code, Long workspaceId) {
+                validateWorkspaceId(workspaceId);
+                Ticket ticket = ticketRepository.findByCode(code)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with code: " + code));
+                validateTicketInWorkspace(ticket, workspaceId);
+                projectAccessService.requireView(ticket.getProject());
+                return toResponse(ticket);
+        }
+
         // ============================================================
         // GET BY PROJECT
         // ============================================================
@@ -236,6 +287,15 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByProject(Long workspaceId, Long projectId) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                projectAccessService.requireView(project);
+                return ticketRepository.findByProjectIdOrderByOrderAsc(projectId).stream()
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -258,10 +318,29 @@ public class TicketService {
         }
 
         @Transactional(readOnly = true)
+        public List<TicketResponse> getActiveByProject(Long workspaceId, Long projectId) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                projectAccessService.requireView(project);
+                return ticketRepository.findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(projectId).stream()
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
+        @Transactional(readOnly = true)
         public List<TicketResponse> getRootTicketsByProject(Long projectId) {
                 projectAccessService.requireView(getProject(projectId));
                 return ticketRepository.findByProjectIdAndParentIsNullAndDeletedAtIsNullOrderByOrderAscIdAsc(projectId)
                                 .stream().filter(this::canView).map(this::toResponse).toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getRootTicketsByProject(Long workspaceId, Long projectId) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                projectAccessService.requireView(project);
+                return ticketRepository.findByProjectIdAndParentIsNullAndDeletedAtIsNullOrderByOrderAscIdAsc(projectId)
+                                .stream()
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         @Transactional(readOnly = true)
@@ -271,6 +350,18 @@ public class TicketService {
                 projectAccessService.requireView(parent.getProject());
                 return ticketRepository.findByParentIdAndDeletedAtIsNullOrderByOrderAscIdAsc(parentId)
                                 .stream().filter(this::canView).map(this::toResponse).toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getChildren(Long workspaceId, Long parentId) {
+                validateWorkspaceId(workspaceId);
+                Ticket parent = ticketRepository.findById(parentId)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + parentId));
+                validateTicketInWorkspace(parent, workspaceId);
+                projectAccessService.requireView(parent.getProject());
+                return ticketRepository.findByParentIdAndDeletedAtIsNullOrderByOrderAscIdAsc(parentId).stream()
+                                .filter(t -> isTicketInWorkspace(t, workspaceId))
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         @Transactional(readOnly = true)
@@ -294,6 +385,31 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<BoardColumnResponse> getBoard(Long workspaceId, Long projectId) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                projectAccessService.requireView(project);
+                List<TicketStatus> statuses = new ArrayList<>(
+                                ticketStatusRepository.findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(projectId));
+                statuses.addAll(ticketStatusRepository.findByProjectIdIsNullAndDeletedAtIsNull());
+                return statuses.stream()
+                                .sorted(Comparator.comparing(TicketStatus::getOrder).thenComparing(TicketStatus::getId))
+                                .map(status -> BoardColumnResponse.builder()
+                                                .statusId(status.getId()).statusName(status.getName())
+                                                .statusColor(status.getColor()).category(status.getCategory())
+                                                .order(status.getOrder())
+                                                .tickets(ticketRepository
+                                                                .findByProjectIdAndStatusIdAndDeletedAtIsNullOrderByOrderAsc(
+                                                                                projectId, status.getId())
+                                                                .stream()
+                                                                .filter(t -> isTicketInWorkspace(t, workspaceId))
+                                                                .filter(this::canView)
+                                                                .map(this::toResponse).toList())
+                                                .build())
+                                .toList();
+        }
+
         // ============================================================
         // GET BY OWNER
         // ============================================================
@@ -308,6 +424,15 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByOwner(Long workspaceId, Long ownerId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> t.getOwner() != null)
+                                .filter(t -> ownerId.equals(t.getOwner().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -326,6 +451,15 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByResponsible(Long workspaceId, Long responsibleId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> t.getResponsible() != null)
+                                .filter(t -> responsibleId.equals(t.getResponsible().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
         // ============================================================
         // GET BY STATUS
         // ============================================================
@@ -340,6 +474,15 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByStatus(Long workspaceId, Long statusId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> t.getStatus() != null)
+                                .filter(t -> statusId.equals(t.getStatus().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -358,6 +501,15 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByType(Long workspaceId, Long typeId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> t.getType() != null)
+                                .filter(t -> typeId.equals(t.getType().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
         // ============================================================
         // GET BY PRIORITY
         // ============================================================
@@ -372,6 +524,15 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByPriority(Long workspaceId, Long priorityId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> t.getPriority() != null)
+                                .filter(t -> priorityId.equals(t.getPriority().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -390,6 +551,15 @@ public class TicketService {
                                 .toList();
         }
 
+        @Transactional(readOnly = true)
+        public List<TicketResponse> getByEpic(Long workspaceId, Long epicId) {
+                validateWorkspaceId(workspaceId);
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> t.getEpic() != null)
+                                .filter(t -> epicId.equals(t.getEpic().getId()))
+                                .filter(this::canView).map(this::toResponse).toList();
+        }
+
         // ============================================================
         // SEARCH
         // ============================================================
@@ -404,6 +574,19 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> search(Long workspaceId, String name) {
+                validateWorkspaceId(workspaceId);
+                String query = name == null ? "" : name.trim().toLowerCase();
+                return ticketRepository.findByWorkspaceId(workspaceId).stream()
+                                .filter(t -> query.isBlank()
+                                                || (t.getName() != null && t.getName().toLowerCase().contains(query))
+                                                || (t.getContent() != null
+                                                                && t.getContent().toLowerCase().contains(query))
+                                                || (t.getCode() != null && t.getCode().toLowerCase().contains(query)))
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -425,6 +608,15 @@ public class TicketService {
                                 .filter(this::canView)
                                 .map(this::toResponse)
                                 .toList();
+        }
+
+        @Transactional(readOnly = true)
+        public List<TicketResponse> searchInProject(Long workspaceId, Long projectId, String name) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                projectAccessService.requireView(project);
+                return ticketRepository.findByProjectIdAndNameContainingIgnoreCase(projectId, name).stream()
+                                .filter(this::canView).map(this::toResponse).toList();
         }
 
         @Transactional(readOnly = true)
@@ -450,6 +642,40 @@ public class TicketService {
                                 .first(page.isFirst()).last(page.isLast()).build();
         }
 
+        @Transactional(readOnly = true)
+        public TicketPageResponse filter(Long workspaceId, Long projectId, TicketFilterRequest filter) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                projectAccessService.requireView(project);
+                String requestedSort = filter.getSort() == null || filter.getSort().isBlank() ? "order"
+                                : filter.getSort();
+                String sortProperty = switch (requestedSort) {
+                        case "createdAt", "updatedAt", "code", "name", "order", "estimation" -> requestedSort;
+                        default -> throw new RuntimeException("Unsupported sort field");
+                };
+                Sort.Direction direction = "DESC".equalsIgnoreCase(filter.getDirection()) ? Sort.Direction.DESC
+                                : Sort.Direction.ASC;
+                Page<Ticket> page = ticketRepository.searchActiveByWorkspaceAndProject(workspaceId, projectId,
+                                blankToNull(filter.getQ()), filter.getStatusId(), filter.getPriorityId(),
+                                filter.getResponsibleId(), filter.getSprintId(), filter.getEpicId(),
+                                filter.getLabelId(),
+                                Boolean.TRUE.equals(filter.getRootOnly()),
+                                PageRequest.of(filter.getPage(), filter.getSize(), Sort.by(direction, sortProperty)));
+                return toPageResponse(page);
+        }
+
+        private TicketPageResponse toPageResponse(Page<Ticket> page) {
+                return TicketPageResponse.builder()
+                                .items(page.getContent().stream().map(this::toResponse).toList())
+                                .page(page.getNumber())
+                                .size(page.getSize())
+                                .totalItems(page.getTotalElements())
+                                .totalPages(page.getTotalPages())
+                                .first(page.isFirst())
+                                .last(page.isLast())
+                                .build();
+        }
+
         // ============================================================
         // CREATE
         // ============================================================
@@ -464,6 +690,7 @@ public class TicketService {
                                                                 + request.getProjectId()));
                 projectAccessService.requireEditor(project);
                 validateProjectActive(project);
+                validateProjectWorkspace(project);
 
                 User owner = userRepository
                                 .findById(request.getOwnerId())
@@ -598,6 +825,7 @@ public class TicketService {
                                                                 + request.getProjectId()));
                 projectAccessService.requireEditor(project);
                 validateProjectActive(project);
+                validateSameWorkspace(ticket.getProject(), project);
 
                 User owner = userRepository
                                 .findById(request.getOwnerId())
@@ -792,6 +1020,13 @@ public class TicketService {
                 return ticketRepository.saveAll(tickets).stream().map(this::toResponse).toList();
         }
 
+        @Transactional
+        public List<TicketResponse> plan(Long workspaceId, Long projectId, TicketPlanningRequest request) {
+                Project project = getProject(projectId);
+                validateProjectInWorkspace(project, workspaceId);
+                return plan(projectId, request);
+        }
+
         // ============================================================
         // SOFT DELETE
         // ============================================================
@@ -844,6 +1079,86 @@ public class TicketService {
                 auditService.record(ticket.getProject(), ticket, "TICKET_PERMANENTLY_DELETED", "TICKET", ticket.getId(),
                                 ticketSnapshot(ticket));
                 ticketRepository.delete(ticket);
+        }
+
+        // ============================================================
+        // WORKSPACE VALIDATION
+        // ============================================================
+
+        private void validateWorkspaceId(Long workspaceId) {
+                if (workspaceId == null || workspaceId <= 0) {
+                        throw new IllegalArgumentException(
+                                        "Workspace ID must be greater than zero");
+                }
+        }
+
+        private void validateProjectWorkspace(Project project) {
+                if (project == null) {
+                        throw new IllegalArgumentException("Project is required");
+                }
+
+                if (project.getWorkspace() == null
+                                || project.getWorkspace().getId() == null) {
+                        throw new RuntimeException(
+                                        "Project is not assigned to a workspace");
+                }
+        }
+
+        private void validateProjectInWorkspace(
+                        Project project,
+                        Long workspaceId) {
+
+                validateWorkspaceId(workspaceId);
+                validateProjectWorkspace(project);
+
+                if (!workspaceId.equals(
+                                project.getWorkspace().getId())) {
+                        throw new RuntimeException(
+                                        "Project does not belong to the selected workspace");
+                }
+        }
+
+        private void validateTicketInWorkspace(
+                        Ticket ticket,
+                        Long workspaceId) {
+
+                validateWorkspaceId(workspaceId);
+
+                if (ticket == null || ticket.getProject() == null) {
+                        throw new RuntimeException(
+                                        "Ticket is not associated with a project");
+                }
+
+                validateProjectInWorkspace(
+                                ticket.getProject(),
+                                workspaceId);
+        }
+
+        private boolean isTicketInWorkspace(
+                        Ticket ticket,
+                        Long workspaceId) {
+
+                return ticket != null
+                                && ticket.getProject() != null
+                                && ticket.getProject().getWorkspace() != null
+                                && workspaceId.equals(
+                                                ticket.getProject()
+                                                                .getWorkspace()
+                                                                .getId());
+        }
+
+        private void validateSameWorkspace(
+                        Project currentProject,
+                        Project targetProject) {
+
+                validateProjectWorkspace(currentProject);
+                validateProjectWorkspace(targetProject);
+
+                if (!currentProject.getWorkspace().getId().equals(
+                                targetProject.getWorkspace().getId())) {
+                        throw new RuntimeException(
+                                        "A ticket cannot be moved between workspaces");
+                }
         }
 
         // ============================================================

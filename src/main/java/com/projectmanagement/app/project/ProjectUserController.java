@@ -34,7 +34,13 @@ public class ProjectUserController {
 
         @GetMapping
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<ProjectUserResponse>> getAllProjectUsers() {
+        public ResponseEntity<List<ProjectUserResponse>> getAllProjectUsers(
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.getAllProjectUsers(workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectUserService.getAllProjectUsers());
@@ -47,7 +53,15 @@ public class ProjectUserController {
         @GetMapping("/{id}")
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<ProjectUserResponse> getProjectUserById(
-                        @PathVariable Long id) {
+                        @PathVariable Long id,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.getProjectUserById(
+                                                        id,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectUserService.getProjectUserById(id));
@@ -60,11 +74,18 @@ public class ProjectUserController {
         @GetMapping("/project/{projectId}")
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectUserResponse>> getProjectUsersByProject(
-                        @PathVariable Long projectId) {
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.getProjectUsersByProject(
+                                                        projectId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
-                                projectUserService
-                                                .getProjectUsersByProject(projectId));
+                                projectUserService.getProjectUsersByProject(projectId));
         }
 
         // ---------------------------------------------------------
@@ -74,11 +95,18 @@ public class ProjectUserController {
         @GetMapping("/user/{userId}")
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectUserResponse>> getProjectUsersByUser(
-                        @PathVariable Long userId) {
+                        @PathVariable Long userId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.getProjectUsersByUser(
+                                                        userId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
-                                projectUserService
-                                                .getProjectUsersByUser(userId));
+                                projectUserService.getProjectUsersByUser(userId));
         }
 
         // ---------------------------------------------------------
@@ -89,13 +117,21 @@ public class ProjectUserController {
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectUserResponse>> getProjectUsersByProjectAndRole(
                         @PathVariable Long projectId,
-                        @PathVariable String role) {
+                        @PathVariable String role,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.getProjectUsersByProjectAndRole(
+                                                        projectId,
+                                                        role,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
-                                projectUserService
-                                                .getProjectUsersByProjectAndRole(
-                                                                projectId,
-                                                                role));
+                                projectUserService.getProjectUsersByProjectAndRole(
+                                                projectId,
+                                                role));
         }
 
         // ---------------------------------------------------------
@@ -106,7 +142,16 @@ public class ProjectUserController {
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<Boolean> checkAssignment(
                         @RequestParam Long projectId,
-                        @RequestParam Long userId) {
+                        @RequestParam Long userId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.existsByProjectAndUser(
+                                                        projectId,
+                                                        userId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectUserService.existsByProjectAndUser(
@@ -123,10 +168,10 @@ public class ProjectUserController {
         public ResponseEntity<ProjectUserResponse> createProjectUser(
                         @Valid @RequestBody ProjectUserRequest request) {
 
-                return ResponseEntity.status(HttpStatus.CREATED)
+                return ResponseEntity
+                                .status(HttpStatus.CREATED)
                                 .body(
-                                                projectUserService
-                                                                .createProjectUser(request));
+                                                projectUserService.createProjectUser(request));
         }
 
         // ---------------------------------------------------------
@@ -152,9 +197,16 @@ public class ProjectUserController {
         @DeleteMapping("/{id}")
         @PreAuthorize("hasAuthority('project_user.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> deleteProjectUser(
-                        @PathVariable Long id) {
+                        @PathVariable Long id,
+                        @RequestParam(required = false) Long workspaceId) {
 
-                projectUserService.deleteProjectUser(id);
+                if (workspaceId != null) {
+                        projectUserService.deleteProjectUser(
+                                        id,
+                                        workspaceId);
+                } else {
+                        projectUserService.deleteProjectUser(id);
+                }
 
                 return ResponseEntity.noContent().build();
         }
@@ -166,10 +218,17 @@ public class ProjectUserController {
         @DeleteMapping("/project/{projectId}")
         @PreAuthorize("hasAuthority('project_user.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> deleteProjectUsersByProject(
-                        @PathVariable Long projectId) {
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
 
-                projectUserService.deleteProjectUsersByProject(
-                                projectId);
+                if (workspaceId != null) {
+                        projectUserService.deleteProjectUsersByProject(
+                                        projectId,
+                                        workspaceId);
+                } else {
+                        projectUserService.deleteProjectUsersByProject(
+                                        projectId);
+                }
 
                 return ResponseEntity.noContent().build();
         }
@@ -181,9 +240,16 @@ public class ProjectUserController {
         @DeleteMapping("/user/{userId}")
         @PreAuthorize("hasAuthority('project_user.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> deleteProjectUsersByUser(
-                        @PathVariable Long userId) {
+                        @PathVariable Long userId,
+                        @RequestParam(required = false) Long workspaceId) {
 
-                projectUserService.deleteProjectUsersByUser(userId);
+                if (workspaceId != null) {
+                        projectUserService.deleteProjectUsersByUser(
+                                        userId,
+                                        workspaceId);
+                } else {
+                        projectUserService.deleteProjectUsersByUser(userId);
+                }
 
                 return ResponseEntity.noContent().build();
         }
@@ -195,7 +261,15 @@ public class ProjectUserController {
         @GetMapping("/project/{projectId}/count")
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<Long> countUsersByProject(
-                        @PathVariable Long projectId) {
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.countUsersByProject(
+                                                        projectId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectUserService.countUsersByProject(projectId));
@@ -208,7 +282,15 @@ public class ProjectUserController {
         @GetMapping("/user/{userId}/count")
         @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
         public ResponseEntity<Long> countProjectsByUser(
-                        @PathVariable Long userId) {
+                        @PathVariable Long userId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectUserService.countProjectsByUser(
+                                                        userId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectUserService.countProjectsByUser(userId));

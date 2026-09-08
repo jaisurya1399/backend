@@ -9,95 +9,156 @@ import org.springframework.data.repository.query.Param;
 
 public interface ProjectRepository extends JpaRepository<Project, Long> {
 
-        // =========================================================
-        // EXISTING QUERIES
-        // =========================================================
+    // =========================================================
+    // EXISTING QUERIES
+    // =========================================================
 
-        List<Project> findByDeletedAtIsNull();
+    List<Project> findByDeletedAtIsNull();
 
-        List<Project> findByOwnerId(Long ownerId);
+    List<Project> findByOwnerId(Long ownerId);
 
-        List<Project> findByOwnerIdAndDeletedAtIsNull(Long ownerId);
+    List<Project> findByOwnerIdAndDeletedAtIsNull(Long ownerId);
 
-        List<Project> findByStatusId(Long statusId);
+    List<Project> findByStatusId(Long statusId);
 
-        List<Project> findByStatusIdAndDeletedAtIsNull(Long statusId);
+    List<Project> findByStatusIdAndDeletedAtIsNull(Long statusId);
 
-        Optional<Project> findByName(String name);
+    Optional<Project> findByName(String name);
 
-        Optional<Project> findByNameAndDeletedAtIsNull(String name);
+    Optional<Project> findByNameAndDeletedAtIsNull(String name);
 
-        boolean existsByName(String name);
+    boolean existsByName(String name);
 
-        boolean existsByNameAndIdNot(String name, Long id);
+    boolean existsByNameAndIdNot(String name, Long id);
 
-        boolean existsByTicketPrefix(String ticketPrefix);
+    boolean existsByTicketPrefix(String ticketPrefix);
 
-        boolean existsByTicketPrefixAndIdNot(
-                        String ticketPrefix,
-                        Long id);
+    boolean existsByTicketPrefixAndIdNot(
+            String ticketPrefix,
+            Long id);
 
-        // =========================================================
-        // PROJECT VISIBILITY
-        // =========================================================
+    // =========================================================
+    // WORKSPACE QUERIES
+    // =========================================================
 
-        /**
-         * Returns projects visible to a particular user.
-         *
-         * A user can see a project when:
-         *
-         * 1. They are the owner
-         * OR
-         * 2. They are assigned to the project in project_users
-         */
-        @Query("""
-                        SELECT DISTINCT p
-                        FROM Project p
-                        LEFT JOIN ProjectUser pu
-                            ON pu.project.id = p.id
-                        WHERE p.deletedAt IS NULL
-                          AND (
-                                p.owner.id = :userId
-                                OR pu.user.id = :userId
-                              )
-                        ORDER BY p.id DESC
-                        """)
-        List<Project> findVisibleProjectsForUser(
-                        @Param("userId") Long userId);
+    /**
+     * Returns all projects belonging to a workspace.
+     */
+    List<Project> findByWorkspaceId(Long workspaceId);
 
-        /**
-         * Returns active projects visible to a user.
-         */
-        @Query("""
-                        SELECT DISTINCT p
-                        FROM Project p
-                        LEFT JOIN ProjectUser pu
-                            ON pu.project.id = p.id
-                        WHERE p.deletedAt IS NULL
-                          AND (
-                                p.owner.id = :userId
-                                OR pu.user.id = :userId
-                              )
-                        ORDER BY p.id DESC
-                        """)
-        List<Project> findVisibleActiveProjectsForUser(
-                        @Param("userId") Long userId);
+    /**
+     * Returns active projects belonging to a workspace.
+     */
+    List<Project> findByWorkspaceIdAndDeletedAtIsNull(
+            Long workspaceId);
 
-        /**
-         * Check whether a user can access a particular project.
-         */
-        @Query("""
-                        SELECT COUNT(p) > 0
-                        FROM Project p
-                        LEFT JOIN ProjectUser pu
-                            ON pu.project.id = p.id
-                        WHERE p.id = :projectId
-                          AND (
-                                p.owner.id = :userId
-                                OR pu.user.id = :userId
-                              )
-                        """)
-        boolean existsByIdAndUserCanAccess(
-                        @Param("projectId") Long projectId,
-                        @Param("userId") Long userId);
+    // =========================================================
+    // PROJECT VISIBILITY
+    // =========================================================
+
+    /**
+     * Returns projects visible to a particular user.
+     *
+     * A user can see a project when:
+     *
+     * 1. They are the owner
+     * OR
+     * 2. They are assigned to the project in project_users
+     */
+    @Query("""
+            SELECT DISTINCT p
+            FROM Project p
+            LEFT JOIN ProjectUser pu
+                ON pu.project.id = p.id
+            WHERE p.deletedAt IS NULL
+              AND (
+                    p.owner.id = :userId
+                    OR pu.user.id = :userId
+                  )
+            ORDER BY p.id DESC
+            """)
+    List<Project> findVisibleProjectsForUser(
+            @Param("userId") Long userId);
+
+    /**
+     * Returns active projects visible to a user.
+     */
+    @Query("""
+            SELECT DISTINCT p
+            FROM Project p
+            LEFT JOIN ProjectUser pu
+                ON pu.project.id = p.id
+            WHERE p.deletedAt IS NULL
+              AND (
+                    p.owner.id = :userId
+                    OR pu.user.id = :userId
+                  )
+            ORDER BY p.id DESC
+            """)
+    List<Project> findVisibleActiveProjectsForUser(
+            @Param("userId") Long userId);
+
+    /**
+     * Returns projects visible to a user within a specific workspace.
+     *
+     * A user can see a project when:
+     *
+     * 1. They are the owner
+     * OR
+     * 2. They are assigned to the project in project_users
+     */
+    @Query("""
+            SELECT DISTINCT p
+            FROM Project p
+            LEFT JOIN ProjectUser pu
+                ON pu.project.id = p.id
+            WHERE p.workspace.id = :workspaceId
+              AND p.deletedAt IS NULL
+              AND (
+                    p.owner.id = :userId
+                    OR pu.user.id = :userId
+                  )
+            ORDER BY p.id DESC
+            """)
+    List<Project> findVisibleProjectsForUserInWorkspace(
+            @Param("workspaceId") Long workspaceId,
+            @Param("userId") Long userId);
+
+    /**
+     * Returns active projects visible to a user within a specific workspace.
+     */
+    @Query("""
+            SELECT DISTINCT p
+            FROM Project p
+            LEFT JOIN ProjectUser pu
+                ON pu.project.id = p.id
+            WHERE p.workspace.id = :workspaceId
+              AND p.deletedAt IS NULL
+              AND (
+                    p.owner.id = :userId
+                    OR pu.user.id = :userId
+                  )
+            ORDER BY p.id DESC
+            """)
+    List<Project> findVisibleActiveProjectsForUserInWorkspace(
+            @Param("workspaceId") Long workspaceId,
+            @Param("userId") Long userId);
+
+    /**
+     * Check whether a user can access a particular project.
+     */
+    @Query("""
+            SELECT COUNT(p) > 0
+            FROM Project p
+            LEFT JOIN ProjectUser pu
+                ON pu.project.id = p.id
+            WHERE p.id = :projectId
+              AND (
+                    p.owner.id = :userId
+                    OR pu.user.id = :userId
+                  )
+            """)
+    boolean existsByIdAndUserCanAccess(
+            @Param("projectId") Long projectId,
+            @Param("userId") Long userId);
 }

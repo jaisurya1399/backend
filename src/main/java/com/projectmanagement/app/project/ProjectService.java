@@ -52,31 +52,18 @@ public class ProjectService {
         @Transactional(readOnly = true)
         public List<ProjectResponse> getAllProjects() {
 
-                Authentication authentication = SecurityContextHolder
-                                .getContext()
-                                .getAuthentication();
-
-                // --------------------------------------------------------
-                // ADMIN can see all projects
-                // --------------------------------------------------------
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
                 if (isAdmin(authentication)) {
-
-                        return projectRepository
-                                        .findAll()
+                        return projectRepository.findAll()
                                         .stream()
                                         .map(this::toResponse)
                                         .toList();
                 }
 
-                // --------------------------------------------------------
-                // Normal user can only see visible projects
-                // --------------------------------------------------------
-
                 Long userId = currentUserService.getCurrentUserId();
 
-                return projectRepository
-                                .findVisibleProjectsForUser(userId)
+                return projectRepository.findVisibleProjectsForUser(userId)
                                 .stream()
                                 .map(this::toResponse)
                                 .toList();
@@ -89,31 +76,18 @@ public class ProjectService {
         @Transactional(readOnly = true)
         public List<ProjectResponse> getAllActiveProjects() {
 
-                Authentication authentication = SecurityContextHolder
-                                .getContext()
-                                .getAuthentication();
-
-                // --------------------------------------------------------
-                // ADMIN can see all active projects
-                // --------------------------------------------------------
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
                 if (isAdmin(authentication)) {
-
-                        return projectRepository
-                                        .findByDeletedAtIsNull()
+                        return projectRepository.findByDeletedAtIsNull()
                                         .stream()
                                         .map(this::toResponse)
                                         .toList();
                 }
 
-                // --------------------------------------------------------
-                // Normal user can only see visible active projects
-                // --------------------------------------------------------
-
                 Long userId = currentUserService.getCurrentUserId();
 
-                return projectRepository
-                                .findVisibleActiveProjectsForUser(userId)
+                return projectRepository.findVisibleActiveProjectsForUser(userId)
                                 .stream()
                                 .map(this::toResponse)
                                 .toList();
@@ -128,10 +102,6 @@ public class ProjectService {
 
                 validateId(id);
 
-                Authentication authentication = SecurityContextHolder
-                                .getContext()
-                                .getAuthentication();
-
                 Project project = getProjectEntityById(id);
 
                 projectAccessService.requireView(project);
@@ -144,14 +114,13 @@ public class ProjectService {
         // ============================================================
 
         @Transactional(readOnly = true)
-        public List<ProjectResponse> getProjectsByOwner(
-                        Long ownerId) {
+        public List<ProjectResponse> getProjectsByOwner(Long ownerId) {
 
                 validateUserId(ownerId);
 
-                return projectRepository
-                                .findByOwnerId(ownerId)
+                return projectRepository.findByOwnerId(ownerId)
                                 .stream()
+                                .filter(this::canViewProject)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -161,14 +130,13 @@ public class ProjectService {
         // ============================================================
 
         @Transactional(readOnly = true)
-        public List<ProjectResponse> getActiveProjectsByOwner(
-                        Long ownerId) {
+        public List<ProjectResponse> getActiveProjectsByOwner(Long ownerId) {
 
                 validateUserId(ownerId);
 
-                return projectRepository
-                                .findByOwnerIdAndDeletedAtIsNull(ownerId)
+                return projectRepository.findByOwnerIdAndDeletedAtIsNull(ownerId)
                                 .stream()
+                                .filter(this::canViewProject)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -178,14 +146,13 @@ public class ProjectService {
         // ============================================================
 
         @Transactional(readOnly = true)
-        public List<ProjectResponse> getProjectsByStatus(
-                        Long statusId) {
+        public List<ProjectResponse> getProjectsByStatus(Long statusId) {
 
                 validateStatusId(statusId);
 
-                return projectRepository
-                                .findByStatusId(statusId)
+                return projectRepository.findByStatusId(statusId)
                                 .stream()
+                                .filter(this::canViewProject)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -195,14 +162,13 @@ public class ProjectService {
         // ============================================================
 
         @Transactional(readOnly = true)
-        public List<ProjectResponse> getActiveProjectsByStatus(
-                        Long statusId) {
+        public List<ProjectResponse> getActiveProjectsByStatus(Long statusId) {
 
                 validateStatusId(statusId);
 
-                return projectRepository
-                                .findByStatusIdAndDeletedAtIsNull(statusId)
+                return projectRepository.findByStatusIdAndDeletedAtIsNull(statusId)
                                 .stream()
+                                .filter(this::canViewProject)
                                 .map(this::toResponse)
                                 .toList();
         }
@@ -212,17 +178,16 @@ public class ProjectService {
         // ============================================================
 
         @Transactional(readOnly = true)
-        public ProjectResponse getProjectByName(
-                        String name) {
+        public ProjectResponse getProjectByName(String name) {
 
                 validateName(name);
 
                 Project project = projectRepository
-                                .findByNameAndDeletedAtIsNull(
-                                                name.trim())
+                                .findByNameAndDeletedAtIsNull(name.trim())
                                 .orElseThrow(() -> new RuntimeException(
-                                                "Project not found with name: "
-                                                                + name));
+                                                "Project not found with name: " + name));
+
+                projectAccessService.requireView(project);
 
                 return toResponse(project);
         }
@@ -232,43 +197,32 @@ public class ProjectService {
         // ============================================================
 
         @Transactional
-        public ProjectResponse createProject(
-                        ProjectRequest request) {
+        public ProjectResponse createProject(ProjectRequest request) {
 
                 validateRequest(request);
 
                 String normalizedName = request.getName().trim();
-
                 String normalizedPrefix = request.getTicketPrefix().trim();
 
-                // --------------------------------------------------------
-                // Check duplicate project name
-                // --------------------------------------------------------
+                Workspace workspace = getActiveWorkspace(request.getWorkspaceId());
 
-                if (projectRepository.existsByName(
-                                normalizedName)) {
+                validateWorkspaceManager(workspace.getId());
 
+                if (projectRepository.existsByName(normalizedName)) {
                         throw new RuntimeException(
-                                        "Project already exists with name: "
-                                                        + normalizedName);
+                                        "Project already exists with name: " + normalizedName);
                 }
 
-                // --------------------------------------------------------
-                // Check duplicate ticket prefix
-                // --------------------------------------------------------
-
-                if (projectRepository.existsByTicketPrefix(
-                                normalizedPrefix)) {
-
+                if (projectRepository.existsByTicketPrefix(normalizedPrefix)) {
                         throw new RuntimeException(
-                                        "Ticket prefix already exists: "
-                                                        + normalizedPrefix);
+                                        "Ticket prefix already exists: " + normalizedPrefix);
                 }
 
                 User owner = getUserById(request.getOwnerId());
-                Workspace workspace = getActiveWorkspace(request.getWorkspaceId());
-                validateWorkspaceManager(workspace.getId());
-                validateWorkspaceMember(workspace.getId(), owner.getId());
+
+                validateWorkspaceMember(
+                                workspace.getId(),
+                                owner.getId());
 
                 ProjectStatus status = getStatusById(request.getStatusId());
 
@@ -304,19 +258,19 @@ public class ProjectService {
                 validateRequest(request);
 
                 Project project = getProjectEntityById(id);
+
                 projectAccessService.requireManager(project);
 
-                if (!project.getWorkspace().getId().equals(request.getWorkspaceId())) {
-                        throw new RuntimeException("Project workspace cannot be changed");
+                if (project.getWorkspace() == null
+                                || !project.getWorkspace().getId()
+                                                .equals(request.getWorkspaceId())) {
+
+                        throw new RuntimeException(
+                                        "Project workspace cannot be changed");
                 }
 
                 String normalizedName = request.getName().trim();
-
                 String normalizedPrefix = request.getTicketPrefix().trim();
-
-                // --------------------------------------------------------
-                // Check duplicate project name
-                // --------------------------------------------------------
 
                 if (projectRepository.existsByNameAndIdNot(
                                 normalizedName,
@@ -327,14 +281,9 @@ public class ProjectService {
                                                         + normalizedName);
                 }
 
-                // --------------------------------------------------------
-                // Check duplicate ticket prefix
-                // --------------------------------------------------------
-
-                if (projectRepository
-                                .existsByTicketPrefixAndIdNot(
-                                                normalizedPrefix,
-                                                id)) {
+                if (projectRepository.existsByTicketPrefixAndIdNot(
+                                normalizedPrefix,
+                                id)) {
 
                         throw new RuntimeException(
                                         "Ticket prefix already exists: "
@@ -342,13 +291,15 @@ public class ProjectService {
                 }
 
                 User owner = getUserById(request.getOwnerId());
-                validateWorkspaceMember(project.getWorkspace().getId(), owner.getId());
+
+                validateWorkspaceMember(
+                                project.getWorkspace().getId(),
+                                owner.getId());
 
                 ProjectStatus status = getStatusById(request.getStatusId());
 
                 project.setName(normalizedName);
-                project.setDescription(
-                                request.getDescription());
+                project.setDescription(request.getDescription());
                 project.setOwner(owner);
                 project.setStatus(status);
                 project.setTicketPrefix(normalizedPrefix);
@@ -375,10 +326,10 @@ public class ProjectService {
                 validateId(id);
 
                 Project project = getProjectEntityById(id);
+
                 projectAccessService.requireManager(project);
 
-                project.setDeletedAt(
-                                LocalDateTime.now());
+                project.setDeletedAt(LocalDateTime.now());
 
                 projectRepository.save(project);
         }
@@ -393,6 +344,7 @@ public class ProjectService {
                 validateId(id);
 
                 Project project = getProjectEntityById(id);
+
                 projectAccessService.requireManager(project);
 
                 project.setDeletedAt(null);
@@ -410,62 +362,349 @@ public class ProjectService {
                 validateId(id);
 
                 Project project = getProjectEntityById(id);
+
                 projectAccessService.requireManager(project);
 
                 projectRepository.delete(project);
         }
 
         // ============================================================
+        // GET PROJECTS BY WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public List<ProjectResponse> getProjectsByWorkspace(
+                        Long workspaceId) {
+
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+                if (isAdmin(authentication)) {
+
+                        return projectRepository
+                                        .findByWorkspaceId(workspace.getId())
+                                        .stream()
+                                        .map(this::toResponse)
+                                        .toList();
+                }
+
+                Long userId = currentUserService.getCurrentUserId();
+
+                validateWorkspaceMember(
+                                workspace.getId(),
+                                userId);
+
+                return projectRepository
+                                .findVisibleProjectsForUserInWorkspace(
+                                                workspace.getId(),
+                                                userId)
+                                .stream()
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        // ============================================================
+        // GET ACTIVE PROJECTS BY WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public List<ProjectResponse> getActiveProjectsByWorkspace(
+                        Long workspaceId) {
+
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+                if (isAdmin(authentication)) {
+
+                        return projectRepository
+                                        .findByWorkspaceIdAndDeletedAtIsNull(
+                                                        workspace.getId())
+                                        .stream()
+                                        .map(this::toResponse)
+                                        .toList();
+                }
+
+                Long userId = currentUserService.getCurrentUserId();
+
+                validateWorkspaceMember(
+                                workspace.getId(),
+                                userId);
+
+                return projectRepository
+                                .findVisibleActiveProjectsForUserInWorkspace(
+                                                workspace.getId(),
+                                                userId)
+                                .stream()
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        // ============================================================
+        // GET PROJECTS BY OWNER + WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public List<ProjectResponse> getProjectsByOwner(
+                        Long ownerId,
+                        Long workspaceId) {
+
+                validateUserId(ownerId);
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                requireWorkspaceViewAccess(workspace.getId());
+
+                return projectRepository
+                                .findByOwnerId(ownerId)
+                                .stream()
+                                .filter(project -> belongsToWorkspace(project, workspace.getId()))
+                                .filter(this::canViewProject)
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        // ============================================================
+        // GET ACTIVE PROJECTS BY OWNER + WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public List<ProjectResponse> getActiveProjectsByOwner(
+                        Long ownerId,
+                        Long workspaceId) {
+
+                validateUserId(ownerId);
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                requireWorkspaceViewAccess(workspace.getId());
+
+                return projectRepository
+                                .findByOwnerIdAndDeletedAtIsNull(ownerId)
+                                .stream()
+                                .filter(project -> belongsToWorkspace(project, workspace.getId()))
+                                .filter(this::canViewProject)
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        // ============================================================
+        // GET PROJECTS BY STATUS + WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public List<ProjectResponse> getProjectsByStatus(
+                        Long statusId,
+                        Long workspaceId) {
+
+                validateStatusId(statusId);
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                requireWorkspaceViewAccess(workspace.getId());
+
+                return projectRepository
+                                .findByStatusId(statusId)
+                                .stream()
+                                .filter(project -> belongsToWorkspace(project, workspace.getId()))
+                                .filter(this::canViewProject)
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        // ============================================================
+        // GET ACTIVE PROJECTS BY STATUS + WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public List<ProjectResponse> getActiveProjectsByStatus(
+                        Long statusId,
+                        Long workspaceId) {
+
+                validateStatusId(statusId);
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                requireWorkspaceViewAccess(workspace.getId());
+
+                return projectRepository
+                                .findByStatusIdAndDeletedAtIsNull(statusId)
+                                .stream()
+                                .filter(project -> belongsToWorkspace(project, workspace.getId()))
+                                .filter(this::canViewProject)
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        // ============================================================
+        // GET PROJECT BY NAME + WORKSPACE
+        // ============================================================
+
+        @Transactional(readOnly = true)
+        public ProjectResponse getProjectByName(
+                        String name,
+                        Long workspaceId) {
+
+                validateName(name);
+                validateWorkspaceId(workspaceId);
+
+                Workspace workspace = getActiveWorkspace(workspaceId);
+
+                requireWorkspaceViewAccess(workspace.getId());
+
+                Project project = projectRepository
+                                .findByNameAndDeletedAtIsNull(name.trim())
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Project not found with name: " + name));
+
+                if (!belongsToWorkspace(
+                                project,
+                                workspace.getId())) {
+
+                        throw new RuntimeException(
+                                        "Project not found in the selected workspace");
+                }
+
+                projectAccessService.requireView(project);
+
+                return toResponse(project);
+        }
+
+        // ============================================================
+        // WORKSPACE ACCESS
+        // ============================================================
+
+        private void requireWorkspaceViewAccess(
+                        Long workspaceId) {
+
+                Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+                if (isAdmin(authentication)) {
+                        return;
+                }
+
+                Long userId = currentUserService.getCurrentUserId();
+
+                validateWorkspaceMember(
+                                workspaceId,
+                                userId);
+        }
+
+        private boolean belongsToWorkspace(
+                        Project project,
+                        Long workspaceId) {
+
+                return project != null
+                                && project.getWorkspace() != null
+                                && project.getWorkspace().getId() != null
+                                && project.getWorkspace().getId().equals(workspaceId);
+        }
+
+        private boolean canViewProject(Project project) {
+
+                try {
+                        return projectAccessService.canView(project);
+                } catch (RuntimeException ex) {
+                        return false;
+                }
+        }
+
+        // ============================================================
         // GET PROJECT ENTITY
         // ============================================================
 
-        private Project getProjectEntityById(
-                        Long id) {
+        private Project getProjectEntityById(Long id) {
 
                 return projectRepository
                                 .findById(id)
                                 .orElseThrow(() -> new RuntimeException(
-                                                "Project not found with id: "
-                                                                + id));
+                                                "Project not found with id: " + id));
         }
 
         // ============================================================
         // GET USER
         // ============================================================
 
-        private User getUserById(
-                        Long userId) {
+        private User getUserById(Long userId) {
 
                 return userRepository
                                 .findById(userId)
                                 .orElseThrow(() -> new RuntimeException(
-                                                "User not found with id: "
-                                                                + userId));
+                                                "User not found with id: " + userId));
         }
 
-        private Workspace getActiveWorkspace(Long workspaceId) {
-                return workspaceRepository.findById(workspaceId)
+        // ============================================================
+        // GET ACTIVE WORKSPACE
+        // ============================================================
+
+        private Workspace getActiveWorkspace(
+                        Long workspaceId) {
+
+                return workspaceRepository
+                                .findById(workspaceId)
                                 .filter(workspace -> workspace.getDeletedAt() == null)
                                 .orElseThrow(() -> new RuntimeException(
-                                                "Workspace not found with id: " + workspaceId));
+                                                "Workspace not found with id: "
+                                                                + workspaceId));
         }
 
-        private void validateWorkspaceMember(Long workspaceId, Long userId) {
-                if (!workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, userId)) {
-                        throw new RuntimeException("Project owner must be a member of the workspace");
+        // ============================================================
+        // VALIDATE WORKSPACE MEMBER
+        // ============================================================
+
+        private void validateWorkspaceMember(
+                        Long workspaceId,
+                        Long userId) {
+
+                if (!workspaceMemberRepository
+                                .existsByWorkspaceIdAndUserId(
+                                                workspaceId,
+                                                userId)) {
+
+                        throw new RuntimeException(
+                                        "User must be a member of the workspace");
                 }
         }
 
-        private void validateWorkspaceManager(Long workspaceId) {
-                if (isAdmin(SecurityContextHolder.getContext().getAuthentication())) {
+        // ============================================================
+        // VALIDATE WORKSPACE MANAGER
+        // ============================================================
+
+        private void validateWorkspaceManager(
+                        Long workspaceId) {
+
+                Authentication authentication = SecurityContextHolder
+                                .getContext()
+                                .getAuthentication();
+
+                if (isAdmin(authentication)) {
                         return;
                 }
+
                 Long currentUserId = currentUserService.getCurrentUserId();
-                WorkspaceRole role = workspaceMemberRepository.findByWorkspaceIdAndUserId(workspaceId, currentUserId)
+
+                WorkspaceRole role = workspaceMemberRepository
+                                .findByWorkspaceIdAndUserId(
+                                                workspaceId,
+                                                currentUserId)
                                 .map(member -> member.getRole())
-                                .orElseThrow(() -> new RuntimeException("You do not have access to this workspace"));
-                if (role != WorkspaceRole.OWNER && role != WorkspaceRole.ADMIN) {
-                        throw new RuntimeException("Workspace admin access is required to create a project");
+                                .orElseThrow(() -> new RuntimeException(
+                                                "You do not have access to this workspace"));
+
+                if (role != WorkspaceRole.OWNER
+                                && role != WorkspaceRole.ADMIN) {
+
+                        throw new RuntimeException(
+                                        "Workspace admin access is required to create a project");
                 }
         }
 
@@ -497,9 +736,7 @@ public class ProjectService {
                 if (project.getOwner() != null) {
 
                         ownerId = project.getOwner().getId();
-
                         ownerName = project.getOwner().getName();
-
                         ownerEmail = project.getOwner().getEmail();
                 }
 
@@ -510,10 +747,19 @@ public class ProjectService {
                 if (project.getStatus() != null) {
 
                         statusId = project.getStatus().getId();
-
                         statusName = project.getStatus().getName();
-
                         statusColor = project.getStatus().getColor();
+                }
+
+                Long workspaceId = null;
+                String workspaceName = null;
+                String workspaceSlug = null;
+
+                if (project.getWorkspace() != null) {
+
+                        workspaceId = project.getWorkspace().getId();
+                        workspaceName = project.getWorkspace().getName();
+                        workspaceSlug = project.getWorkspace().getSlug();
                 }
 
                 return ProjectResponse.builder()
@@ -521,9 +767,9 @@ public class ProjectService {
                                 .name(project.getName())
                                 .description(project.getDescription())
 
-                                .workspaceId(project.getWorkspace().getId())
-                                .workspaceName(project.getWorkspace().getName())
-                                .workspaceSlug(project.getWorkspace().getSlug())
+                                .workspaceId(workspaceId)
+                                .workspaceName(workspaceName)
+                                .workspaceSlug(workspaceSlug)
 
                                 .ownerId(ownerId)
                                 .ownerName(ownerName)
@@ -533,20 +779,12 @@ public class ProjectService {
                                 .statusName(statusName)
                                 .statusColor(statusColor)
 
-                                .ticketPrefix(
-                                                project.getTicketPrefix())
+                                .ticketPrefix(project.getTicketPrefix())
+                                .statusType(project.getStatusType())
 
-                                .statusType(
-                                                project.getStatusType())
-
-                                .deletedAt(
-                                                project.getDeletedAt())
-
-                                .createdAt(
-                                                project.getCreatedAt())
-
-                                .updatedAt(
-                                                project.getUpdatedAt())
+                                .deletedAt(project.getDeletedAt())
+                                .createdAt(project.getCreatedAt())
+                                .updatedAt(project.getUpdatedAt())
 
                                 .build();
         }
@@ -559,34 +797,22 @@ public class ProjectService {
                         ProjectRequest request) {
 
                 if (request == null) {
-
                         throw new IllegalArgumentException(
                                         "Project request cannot be null");
                 }
 
-                validateName(
-                                request.getName());
-
-                validateTicketPrefix(
-                                request.getTicketPrefix());
-
-                validateUserId(
-                                request.getOwnerId());
-
-                if (request.getWorkspaceId() == null || request.getWorkspaceId() <= 0) {
-                        throw new IllegalArgumentException("Workspace ID must be greater than zero");
-                }
-
-                validateStatusId(
-                                request.getStatusId());
+                validateName(request.getName());
+                validateTicketPrefix(request.getTicketPrefix());
+                validateUserId(request.getOwnerId());
+                validateWorkspaceId(request.getWorkspaceId());
+                validateStatusId(request.getStatusId());
         }
 
         // ============================================================
         // VALIDATE PROJECT ID
         // ============================================================
 
-        private void validateId(
-                        Long id) {
+        private void validateId(Long id) {
 
                 if (id == null || id <= 0) {
 
@@ -599,8 +825,7 @@ public class ProjectService {
         // VALIDATE USER ID
         // ============================================================
 
-        private void validateUserId(
-                        Long userId) {
+        private void validateUserId(Long userId) {
 
                 if (userId == null || userId <= 0) {
 
@@ -613,8 +838,7 @@ public class ProjectService {
         // VALIDATE STATUS ID
         // ============================================================
 
-        private void validateStatusId(
-                        Long statusId) {
+        private void validateStatusId(Long statusId) {
 
                 if (statusId == null || statusId <= 0) {
 
@@ -624,11 +848,24 @@ public class ProjectService {
         }
 
         // ============================================================
+        // VALIDATE WORKSPACE ID
+        // ============================================================
+
+        private void validateWorkspaceId(
+                        Long workspaceId) {
+
+                if (workspaceId == null || workspaceId <= 0) {
+
+                        throw new IllegalArgumentException(
+                                        "Workspace ID must be greater than zero");
+                }
+        }
+
+        // ============================================================
         // VALIDATE PROJECT NAME
         // ============================================================
 
-        private void validateName(
-                        String name) {
+        private void validateName(String name) {
 
                 if (name == null || name.isBlank()) {
 
@@ -668,7 +905,7 @@ public class ProjectService {
                 return authentication
                                 .getAuthorities()
                                 .stream()
-                                .anyMatch(authority -> authority.getAuthority()
-                                                .equals("ROLE_ADMIN"));
+                                .anyMatch(authority -> "ROLE_ADMIN".equals(
+                                                authority.getAuthority()));
         }
 }

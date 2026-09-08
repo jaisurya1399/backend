@@ -7,12 +7,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,254 +28,257 @@ public class TicketController {
                 this.ticketService = ticketService;
         }
 
-        // ============================================================
-        // GET ALL TICKETS
-        // ============================================================
-
         @GetMapping
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> getAll() {
+        public ResponseEntity<List<TicketResponse>> getAll(
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getAll());
+                                workspaceId != null
+                                                ? ticketService.getAll(workspaceId)
+                                                : ticketService.getAll());
         }
-
-        // ============================================================
-        // GET ACTIVE TICKETS
-        // ============================================================
 
         @GetMapping("/active")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> getAllActive() {
+        public ResponseEntity<List<TicketResponse>> getAllActive(
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getAllActive());
+                                workspaceId != null
+                                                ? ticketService.getAllActive(workspaceId)
+                                                : ticketService.getAllActive());
         }
-
-        // ============================================================
-        // GET DELETED TICKETS
-        // ============================================================
 
         @GetMapping("/deleted")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> getDeleted() {
+        public ResponseEntity<List<TicketResponse>> getDeleted(
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getDeleted());
+                                workspaceId != null
+                                                ? ticketService.getDeleted(workspaceId)
+                                                : ticketService.getDeleted());
         }
-
-        // ============================================================
-        // GET MY TASKS
-        // ============================================================
-        // Returns tickets where responsible_id belongs to
-        // currently authenticated user.
-        //
-        // Example:
-        // GET /api/tickets/my-tasks
-        // ============================================================
 
         @GetMapping("/my-tasks")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> getMyTasks() {
+        public ResponseEntity<List<TicketResponse>> getMyTasks(
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getMyTasks());
+                                workspaceId != null
+                                                ? ticketService.getMyTasks(workspaceId)
+                                                : ticketService.getMyTasks());
         }
-
-        // ============================================================
-        // GET TICKET BY CODE
-        // ============================================================
 
         @GetMapping("/code/{code}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<TicketResponse> getByCode(
-                        @PathVariable String code) {
+                        @PathVariable String code,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByCode(code));
+                                workspaceId != null
+                                                ? ticketService.getByCode(code, workspaceId)
+                                                : ticketService.getByCode(code));
         }
-
-        // ============================================================
-        // GET TICKETS BY PROJECT
-        // ============================================================
 
         @GetMapping("/project/{projectId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByProject(
-                        @PathVariable Long projectId) {
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByProject(projectId));
+                                workspaceId != null
+                                                ? ticketService.getByProject(workspaceId, projectId)
+                                                : ticketService.getByProject(projectId));
         }
-
-        // ============================================================
-        // GET ACTIVE TICKETS BY PROJECT
-        // ============================================================
 
         @GetMapping("/project/{projectId}/active")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getActiveByProject(
-                        @PathVariable Long projectId) {
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getActiveByProject(projectId));
+                                workspaceId != null
+                                                ? ticketService.getActiveByProject(workspaceId, projectId)
+                                                : ticketService.getActiveByProject(projectId));
         }
 
         @GetMapping("/project/{projectId}/root")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> getRootTicketsByProject(@PathVariable Long projectId) {
-                return ResponseEntity.ok(ticketService.getRootTicketsByProject(projectId));
+        public ResponseEntity<List<TicketResponse>> getRootTicketsByProject(
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                return ResponseEntity.ok(
+                                workspaceId != null
+                                                ? ticketService.getRootTicketsByProject(
+                                                                workspaceId,
+                                                                projectId)
+                                                : ticketService.getRootTicketsByProject(projectId));
         }
 
         @GetMapping("/project/{projectId}/board")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<BoardColumnResponse>> getBoard(@PathVariable Long projectId) {
-                return ResponseEntity.ok(ticketService.getBoard(projectId));
+        public ResponseEntity<List<BoardColumnResponse>> getBoard(
+                        @PathVariable Long projectId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                return ResponseEntity.ok(
+                                workspaceId != null
+                                                ? ticketService.getBoard(workspaceId, projectId)
+                                                : ticketService.getBoard(projectId));
         }
 
         @GetMapping("/{id:\\d+}/children")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> getChildren(@PathVariable Long id) {
-                return ResponseEntity.ok(ticketService.getChildren(id));
-        }
+        public ResponseEntity<List<TicketResponse>> getChildren(
+                        @PathVariable Long id,
+                        @RequestParam(required = false) Long workspaceId) {
 
-        // ============================================================
-        // GET TICKETS BY OWNER
-        // ============================================================
+                return ResponseEntity.ok(
+                                workspaceId != null
+                                                ? ticketService.getChildren(workspaceId, id)
+                                                : ticketService.getChildren(id));
+        }
 
         @GetMapping("/owner/{ownerId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByOwner(
-                        @PathVariable Long ownerId) {
+                        @PathVariable Long ownerId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByOwner(ownerId));
+                                workspaceId != null
+                                                ? ticketService.getByOwner(workspaceId, ownerId)
+                                                : ticketService.getByOwner(ownerId));
         }
-
-        // ============================================================
-        // GET TICKETS BY RESPONSIBLE USER
-        // ============================================================
 
         @GetMapping("/responsible/{responsibleId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByResponsible(
-                        @PathVariable Long responsibleId) {
+                        @PathVariable Long responsibleId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByResponsible(responsibleId));
+                                workspaceId != null
+                                                ? ticketService.getByResponsible(
+                                                                workspaceId,
+                                                                responsibleId)
+                                                : ticketService.getByResponsible(responsibleId));
         }
-
-        // ============================================================
-        // GET TICKETS BY STATUS
-        // ============================================================
 
         @GetMapping("/status/{statusId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByStatus(
-                        @PathVariable Long statusId) {
+                        @PathVariable Long statusId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByStatus(statusId));
+                                workspaceId != null
+                                                ? ticketService.getByStatus(workspaceId, statusId)
+                                                : ticketService.getByStatus(statusId));
         }
-
-        // ============================================================
-        // GET TICKETS BY TYPE
-        // ============================================================
 
         @GetMapping("/type/{typeId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByType(
-                        @PathVariable Long typeId) {
+                        @PathVariable Long typeId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByType(typeId));
+                                workspaceId != null
+                                                ? ticketService.getByType(workspaceId, typeId)
+                                                : ticketService.getByType(typeId));
         }
-
-        // ============================================================
-        // GET TICKETS BY PRIORITY
-        // ============================================================
 
         @GetMapping("/priority/{priorityId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByPriority(
-                        @PathVariable Long priorityId) {
+                        @PathVariable Long priorityId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByPriority(priorityId));
+                                workspaceId != null
+                                                ? ticketService.getByPriority(workspaceId, priorityId)
+                                                : ticketService.getByPriority(priorityId));
         }
-
-        // ============================================================
-        // GET TICKETS BY EPIC
-        // ============================================================
 
         @GetMapping("/epic/{epicId}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> getByEpic(
-                        @PathVariable Long epicId) {
+                        @PathVariable Long epicId,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getByEpic(epicId));
+                                workspaceId != null
+                                                ? ticketService.getByEpic(workspaceId, epicId)
+                                                : ticketService.getByEpic(epicId));
         }
-
-        // ============================================================
-        // SEARCH TICKETS
-        // ============================================================
 
         @GetMapping("/search")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> search(
-                        @RequestParam String keyword) {
+                        @RequestParam String keyword,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.search(keyword));
+                                workspaceId != null
+                                                ? ticketService.search(workspaceId, keyword)
+                                                : ticketService.search(keyword));
         }
-
-        // ============================================================
-        // SEARCH TICKETS BY PROJECT
-        // ============================================================
 
         @GetMapping("/project/{projectId}/search")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<List<TicketResponse>> searchByProject(
                         @PathVariable Long projectId,
-                        @RequestParam String keyword) {
+                        @RequestParam String keyword,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.searchInProject(
-                                                projectId,
-                                                keyword));
+                                workspaceId != null
+                                                ? ticketService.searchInProject(
+                                                                workspaceId,
+                                                                projectId,
+                                                                keyword)
+                                                : ticketService.searchInProject(
+                                                                projectId,
+                                                                keyword));
         }
 
         @GetMapping("/project/{projectId}/filter")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
-        public ResponseEntity<TicketPageResponse> filter(@PathVariable Long projectId, @Valid @ModelAttribute TicketFilterRequest filter) {
-                return ResponseEntity.ok(ticketService.filter(projectId, filter));
-        }
+        public ResponseEntity<TicketPageResponse> filter(
+                        @PathVariable Long projectId,
+                        @Valid @ModelAttribute TicketFilterRequest filter,
+                        @RequestParam(required = false) Long workspaceId) {
 
-        // ============================================================
-        // GET TICKET BY ID
-        // ============================================================
-        // Numeric-only ID prevents:
-        //
-        // /api/tickets/my-tasks
-        //
-        // from being interpreted as:
-        //
-        // /api/tickets/{id}
-        // ============================================================
+                return ResponseEntity.ok(
+                                workspaceId != null
+                                                ? ticketService.filter(
+                                                                workspaceId,
+                                                                projectId,
+                                                                filter)
+                                                : ticketService.filter(
+                                                                projectId,
+                                                                filter));
+        }
 
         @GetMapping("/{id:\\d+}")
         @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
         public ResponseEntity<TicketResponse> getById(
-                        @PathVariable Long id) {
+                        @PathVariable Long id,
+                        @RequestParam(required = false) Long workspaceId) {
 
                 return ResponseEntity.ok(
-                                ticketService.getById(id));
+                                workspaceId != null
+                                                ? ticketService.getById(id, workspaceId)
+                                                : ticketService.getById(id));
         }
-
-        // ============================================================
-        // CREATE TICKET
-        // ============================================================
 
         @PostMapping
         @PreAuthorize("hasAuthority('ticket.create') or hasRole('ADMIN')")
@@ -286,10 +289,6 @@ public class TicketController {
                                 .status(HttpStatus.CREATED)
                                 .body(ticketService.create(request));
         }
-
-        // ============================================================
-        // UPDATE TICKET
-        // ============================================================
 
         @PutMapping("/{id:\\d+}")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
@@ -303,19 +302,31 @@ public class TicketController {
 
         @PutMapping("/{id:\\d+}/transition")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
-        public ResponseEntity<TicketResponse> transition(@PathVariable Long id, @Valid @RequestBody TicketTransitionRequest request) {
-                return ResponseEntity.ok(ticketService.transition(id, request));
+        public ResponseEntity<TicketResponse> transition(
+                        @PathVariable Long id,
+                        @Valid @RequestBody TicketTransitionRequest request) {
+
+                return ResponseEntity.ok(
+                                ticketService.transition(id, request));
         }
 
         @PutMapping("/project/{projectId}/plan")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
-        public ResponseEntity<List<TicketResponse>> plan(@PathVariable Long projectId, @Valid @RequestBody TicketPlanningRequest request) {
-                return ResponseEntity.ok(ticketService.plan(projectId, request));
-        }
+        public ResponseEntity<List<TicketResponse>> plan(
+                        @PathVariable Long projectId,
+                        @Valid @RequestBody TicketPlanningRequest request,
+                        @RequestParam(required = false) Long workspaceId) {
 
-        // ============================================================
-        // RESTORE TICKET
-        // ============================================================
+                return ResponseEntity.ok(
+                                workspaceId != null
+                                                ? ticketService.plan(
+                                                                workspaceId,
+                                                                projectId,
+                                                                request)
+                                                : ticketService.plan(
+                                                                projectId,
+                                                                request));
+        }
 
         @PutMapping("/{id:\\d+}/restore")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
@@ -326,10 +337,6 @@ public class TicketController {
                                 ticketService.restore(id));
         }
 
-        // ============================================================
-        // SOFT DELETE TICKET
-        // ============================================================
-
         @DeleteMapping("/{id:\\d+}")
         @PreAuthorize("hasAuthority('ticket.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> delete(
@@ -339,10 +346,6 @@ public class TicketController {
 
                 return ResponseEntity.noContent().build();
         }
-
-        // ============================================================
-        // PERMANENT DELETE TICKET
-        // ============================================================
 
         @DeleteMapping("/{id:\\d+}/permanent")
         @PreAuthorize("hasAuthority('ticket.delete') or hasRole('ADMIN')")

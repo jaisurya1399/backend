@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -22,26 +23,49 @@ public class ProjectController {
 
         private final ProjectService projectService;
 
-        public ProjectController(
-                        ProjectService projectService) {
+        public ProjectController(ProjectService projectService) {
                 this.projectService = projectService;
         }
 
+        // =========================================================
+        // GET ALL PROJECTS
+        // =========================================================
+
         @GetMapping
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<ProjectResponse>> getAllProjects() {
+        public ResponseEntity<List<ProjectResponse>> getAllProjects(
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getProjectsByWorkspace(workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectService.getAllProjects());
         }
 
+        // =========================================================
+        // GET ACTIVE PROJECTS
+        // =========================================================
+
         @GetMapping("/active")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<ProjectResponse>> getAllActiveProjects() {
+        public ResponseEntity<List<ProjectResponse>> getAllActiveProjects(
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getActiveProjectsByWorkspace(workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectService.getAllActiveProjects());
         }
+
+        // =========================================================
+        // GET PROJECT BY ID
+        // =========================================================
 
         @GetMapping("/{id}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
@@ -52,52 +76,114 @@ public class ProjectController {
                                 projectService.getProjectById(id));
         }
 
+        // =========================================================
+        // GET PROJECTS BY OWNER
+        // =========================================================
+
         @GetMapping("/owner/{ownerId}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getProjectsByOwner(
-                        @PathVariable Long ownerId) {
+                        @PathVariable Long ownerId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getProjectsByOwner(
+                                                        ownerId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectService.getProjectsByOwner(ownerId));
         }
 
+        // =========================================================
+        // GET ACTIVE PROJECTS BY OWNER
+        // =========================================================
+
         @GetMapping("/owner/{ownerId}/active")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getActiveProjectsByOwner(
-                        @PathVariable Long ownerId) {
+                        @PathVariable Long ownerId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getActiveProjectsByOwner(
+                                                        ownerId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
-                                projectService.getActiveProjectsByOwner(
-                                                ownerId));
+                                projectService.getActiveProjectsByOwner(ownerId));
         }
+
+        // =========================================================
+        // GET PROJECTS BY STATUS
+        // =========================================================
 
         @GetMapping("/status/{statusId}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getProjectsByStatus(
-                        @PathVariable Long statusId) {
+                        @PathVariable Long statusId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getProjectsByStatus(
+                                                        statusId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectService.getProjectsByStatus(statusId));
         }
 
+        // =========================================================
+        // GET ACTIVE PROJECTS BY STATUS
+        // =========================================================
+
         @GetMapping("/status/{statusId}/active")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getActiveProjectsByStatus(
-                        @PathVariable Long statusId) {
+                        @PathVariable Long statusId,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getActiveProjectsByStatus(
+                                                        statusId,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
-                                projectService.getActiveProjectsByStatus(
-                                                statusId));
+                                projectService.getActiveProjectsByStatus(statusId));
         }
+
+        // =========================================================
+        // GET PROJECT BY NAME
+        // =========================================================
 
         @GetMapping("/name/{name}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<ProjectResponse> getProjectByName(
-                        @PathVariable String name) {
+                        @PathVariable String name,
+                        @RequestParam(required = false) Long workspaceId) {
+
+                if (workspaceId != null) {
+                        return ResponseEntity.ok(
+                                        projectService.getProjectByName(
+                                                        name,
+                                                        workspaceId));
+                }
 
                 return ResponseEntity.ok(
                                 projectService.getProjectByName(name));
         }
+
+        // =========================================================
+        // CREATE PROJECT
+        // =========================================================
 
         @PostMapping
         @PreAuthorize("hasAuthority('project.create') or hasRole('ADMIN')")
@@ -111,6 +197,10 @@ public class ProjectController {
                                 .body(response);
         }
 
+        // =========================================================
+        // UPDATE PROJECT
+        // =========================================================
+
         @PutMapping("/{id}")
         @PreAuthorize("hasAuthority('project.update') or hasRole('ADMIN')")
         public ResponseEntity<ProjectResponse> updateProject(
@@ -123,6 +213,10 @@ public class ProjectController {
                                                 request));
         }
 
+        // =========================================================
+        // RESTORE PROJECT
+        // =========================================================
+
         @PutMapping("/{id}/restore")
         @PreAuthorize("hasAuthority('project.update') or hasRole('ADMIN')")
         public ResponseEntity<Void> restoreProject(
@@ -133,6 +227,10 @@ public class ProjectController {
                 return ResponseEntity.noContent().build();
         }
 
+        // =========================================================
+        // DELETE PROJECT
+        // =========================================================
+
         @DeleteMapping("/{id}")
         @PreAuthorize("hasAuthority('project.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> deleteProject(
@@ -142,6 +240,10 @@ public class ProjectController {
 
                 return ResponseEntity.noContent().build();
         }
+
+        // =========================================================
+        // PERMANENT DELETE PROJECT
+        // =========================================================
 
         @DeleteMapping("/{id}/permanent")
         @PreAuthorize("hasAuthority('project.delete') or hasRole('ADMIN')")

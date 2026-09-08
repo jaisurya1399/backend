@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projectmanagement.app.project.ProjectAccessService;
+
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -14,15 +16,25 @@ public class TicketRelationService {
 
         private final TicketRelationRepository ticketRelationRepository;
         private final TicketRepository ticketRepository;
+        private final ProjectAccessService projectAccessService;
+
+        // =========================================================
+        // GET ALL
+        // =========================================================
 
         @Transactional(readOnly = true)
         public List<TicketRelationResponse> getAll() {
 
                 return ticketRelationRepository.findAll()
                                 .stream()
+                                .filter(relation -> canViewRelation(relation))
                                 .map(this::mapToResponse)
                                 .toList();
         }
+
+        // =========================================================
+        // GET BY ID
+        // =========================================================
 
         @Transactional(readOnly = true)
         public TicketRelationResponse getById(Long id) {
@@ -31,62 +43,115 @@ public class TicketRelationService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket relation not found with id: " + id));
 
+                requireViewRelation(relation);
+
                 return mapToResponse(relation);
         }
 
-        @Transactional(readOnly = true)
-        public List<TicketRelationResponse> getByTicket(Long ticketId) {
+        // =========================================================
+        // GET BY TICKET
+        // =========================================================
 
-                validateTicket(ticketId);
+        @Transactional(readOnly = true)
+        public List<TicketRelationResponse> getByTicket(
+                        Long ticketId) {
+
+                Ticket ticket = getTicket(ticketId);
+
+                projectAccessService.requireView(
+                                ticket.getProject());
 
                 return ticketRelationRepository
                                 .findByTicketIdOrderBySortAsc(ticketId)
                                 .stream()
+                                .filter(this::canViewRelation)
                                 .map(this::mapToResponse)
                                 .toList();
         }
 
-        @Transactional(readOnly = true)
-        public List<TicketRelationResponse> getByRelation(Long relationId) {
+        // =========================================================
+        // GET BY RELATION
+        // =========================================================
 
-                validateTicket(relationId);
+        @Transactional(readOnly = true)
+        public List<TicketRelationResponse> getByRelation(
+                        Long relationId) {
+
+                Ticket ticket = getTicket(relationId);
+
+                projectAccessService.requireView(
+                                ticket.getProject());
 
                 return ticketRelationRepository
                                 .findByRelationId(relationId)
                                 .stream()
+                                .filter(this::canViewRelation)
                                 .map(this::mapToResponse)
                                 .toList();
         }
 
+        // =========================================================
+        // GET BY TYPE
+        // =========================================================
+
         @Transactional(readOnly = true)
-        public List<TicketRelationResponse> getByType(String type) {
+        public List<TicketRelationResponse> getByType(
+                        String type) {
 
                 return ticketRelationRepository
                                 .findByType(type)
                                 .stream()
+                                .filter(this::canViewRelation)
                                 .map(this::mapToResponse)
                                 .toList();
         }
+
+        // =========================================================
+        // GET BY TICKET + TYPE
+        // =========================================================
 
         @Transactional(readOnly = true)
         public List<TicketRelationResponse> getByTicketAndType(
                         Long ticketId,
                         String type) {
 
-                validateTicket(ticketId);
+                Ticket ticket = getTicket(ticketId);
+
+                projectAccessService.requireView(
+                                ticket.getProject());
 
                 return ticketRelationRepository
-                                .findByTicketIdAndType(ticketId, type)
+                                .findByTicketIdAndType(
+                                                ticketId,
+                                                type)
                                 .stream()
+                                .filter(this::canViewRelation)
                                 .map(this::mapToResponse)
                                 .toList();
         }
+
+        // =========================================================
+        // EXISTS
+        // =========================================================
 
         @Transactional(readOnly = true)
         public boolean exists(
                         Long ticketId,
                         Long relationId,
                         String type) {
+
+                Ticket ticket = getTicket(ticketId);
+                Ticket relatedTicket = getTicket(relationId);
+
+                validateSameWorkspace(
+                                ticket,
+                                relatedTicket);
+
+                projectAccessService.requireView(
+                                ticket.getProject());
+
+                projectAccessService.requireView(
+                                relatedTicket.getProject());
 
                 return ticketRelationRepository
                                 .existsByTicketIdAndRelationIdAndType(
@@ -95,38 +160,56 @@ public class TicketRelationService {
                                                 type);
         }
 
+        // =========================================================
+        // CREATE
+        // =========================================================
+
         public TicketRelationResponse create(
                         TicketRelationRequest request) {
 
-                validateTicket(request.getTicketId());
-                validateTicket(request.getRelationId());
+                validateRequest(request);
 
-                if (request.getTicketId().equals(request.getRelationId())) {
+                Ticket ticket = getTicket(
+                                request.getTicketId());
+
+                Ticket relation = getTicket(
+                                request.getRelationId());
+
+                /*
+                 * User must have edit access to the source ticket's project.
+                 */
+                projectAccessService.requireEditor(
+                                ticket.getProject());
+
+                /*
+                 * Related ticket must also be visible to the user.
+                 */
+                projectAccessService.requireView(
+                                relation.getProject());
+
+                /*
+                 * Relations cannot cross workspace boundaries.
+                 */
+                validateSameWorkspace(
+                                ticket,
+                                relation);
+
+                if (ticket.getId().equals(
+                                relation.getId())) {
+
                         throw new RuntimeException(
                                         "A ticket cannot have a relation with itself");
                 }
 
                 if (ticketRelationRepository
                                 .existsByTicketIdAndRelationIdAndType(
-                                                request.getTicketId(),
-                                                request.getRelationId(),
+                                                ticket.getId(),
+                                                relation.getId(),
                                                 request.getType())) {
 
                         throw new RuntimeException(
                                         "This ticket relation already exists");
                 }
-
-                Ticket ticket = ticketRepository
-                                .findById(request.getTicketId())
-                                .orElseThrow(() -> new RuntimeException(
-                                                "Ticket not found with id: "
-                                                                + request.getTicketId()));
-
-                Ticket relation = ticketRepository
-                                .findById(request.getRelationId())
-                                .orElseThrow(() -> new RuntimeException(
-                                                "Related ticket not found with id: "
-                                                                + request.getRelationId()));
 
                 TicketRelation ticketRelation = TicketRelation.builder()
                                 .ticket(ticket)
@@ -139,97 +222,331 @@ public class TicketRelationService {
                                 .build();
 
                 return mapToResponse(
-                                ticketRelationRepository.save(ticketRelation));
+                                ticketRelationRepository.save(
+                                                ticketRelation));
         }
+
+        // =========================================================
+        // UPDATE
+        // =========================================================
 
         public TicketRelationResponse update(
                         Long id,
                         TicketRelationRequest request) {
+
+                validateRequest(request);
 
                 TicketRelation ticketRelation = ticketRelationRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket relation not found with id: "
                                                                 + id));
 
-                validateTicket(request.getTicketId());
-                validateTicket(request.getRelationId());
+                /*
+                 * Existing relation must be accessible before changing it.
+                 */
+                projectAccessService.requireEditor(
+                                ticketRelation.getTicket().getProject());
 
-                if (request.getTicketId().equals(request.getRelationId())) {
+                Ticket ticket = getTicket(
+                                request.getTicketId());
+
+                Ticket relation = getTicket(
+                                request.getRelationId());
+
+                projectAccessService.requireEditor(
+                                ticket.getProject());
+
+                projectAccessService.requireView(
+                                relation.getProject());
+
+                validateSameWorkspace(
+                                ticket,
+                                relation);
+
+                if (ticket.getId().equals(
+                                relation.getId())) {
+
                         throw new RuntimeException(
                                         "A ticket cannot have a relation with itself");
                 }
 
-                Ticket ticket = ticketRepository
-                                .findById(request.getTicketId())
-                                .orElseThrow(() -> new RuntimeException(
-                                                "Ticket not found with id: "
-                                                                + request.getTicketId()));
+                boolean relationChanged = !ticketRelation.getTicket().getId()
+                                .equals(ticket.getId())
+                                ||
+                                !ticketRelation.getRelation().getId()
+                                                .equals(relation.getId())
+                                ||
+                                !ticketRelation.getType()
+                                                .equals(request.getType());
 
-                Ticket relation = ticketRepository
-                                .findById(request.getRelationId())
-                                .orElseThrow(() -> new RuntimeException(
-                                                "Related ticket not found with id: "
-                                                                + request.getRelationId()));
+                if (relationChanged
+                                && ticketRelationRepository
+                                                .existsByTicketIdAndRelationIdAndType(
+                                                                ticket.getId(),
+                                                                relation.getId(),
+                                                                request.getType())) {
+
+                        throw new RuntimeException(
+                                        "This ticket relation already exists");
+                }
 
                 ticketRelation.setTicket(ticket);
                 ticketRelation.setRelation(relation);
                 ticketRelation.setType(request.getType());
 
                 if (request.getSort() != null) {
-                        ticketRelation.setSort(request.getSort());
+                        ticketRelation.setSort(
+                                        request.getSort());
                 }
 
                 return mapToResponse(
-                                ticketRelationRepository.save(ticketRelation));
+                                ticketRelationRepository.save(
+                                                ticketRelation));
         }
+
+        // =========================================================
+        // DELETE
+        // =========================================================
 
         public void delete(Long id) {
 
-                if (!ticketRelationRepository.existsById(id)) {
-                        throw new RuntimeException(
-                                        "Ticket relation not found with id: " + id);
-                }
+                TicketRelation relation = ticketRelationRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Ticket relation not found with id: "
+                                                                + id));
 
-                ticketRelationRepository.deleteById(id);
+                projectAccessService.requireEditor(
+                                relation.getTicket().getProject());
+
+                ticketRelationRepository.delete(
+                                relation);
         }
 
-        public void deleteByTicket(Long ticketId) {
+        // =========================================================
+        // DELETE BY TICKET
+        // =========================================================
 
-                validateTicket(ticketId);
+        public void deleteByTicket(
+                        Long ticketId) {
 
-                ticketRelationRepository.deleteByTicketId(ticketId);
+                Ticket ticket = getTicket(ticketId);
+
+                projectAccessService.requireEditor(
+                                ticket.getProject());
+
+                ticketRelationRepository.deleteByTicketId(
+                                ticketId);
         }
 
-        public void deleteByRelation(Long relationId) {
+        // =========================================================
+        // DELETE BY RELATION
+        // =========================================================
 
-                validateTicket(relationId);
+        public void deleteByRelation(
+                        Long relationId) {
 
-                ticketRelationRepository.deleteByRelationId(relationId);
+                Ticket ticket = getTicket(relationId);
+
+                projectAccessService.requireEditor(
+                                ticket.getProject());
+
+                ticketRelationRepository.deleteByRelationId(
+                                relationId);
         }
+
+        // =========================================================
+        // COUNT BY TICKET
+        // =========================================================
 
         @Transactional(readOnly = true)
-        public long countByTicket(Long ticketId) {
+        public long countByTicket(
+                        Long ticketId) {
 
-                validateTicket(ticketId);
+                Ticket ticket = getTicket(ticketId);
 
-                return ticketRelationRepository.countByTicketId(ticketId);
+                projectAccessService.requireView(
+                                ticket.getProject());
+
+                return ticketRelationRepository
+                                .findByTicketId(ticketId)
+                                .stream()
+                                .filter(this::canViewRelation)
+                                .count();
         }
+
+        // =========================================================
+        // COUNT BY RELATION
+        // =========================================================
 
         @Transactional(readOnly = true)
-        public long countByRelation(Long relationId) {
+        public long countByRelation(
+                        Long relationId) {
 
-                validateTicket(relationId);
+                Ticket ticket = getTicket(relationId);
 
-                return ticketRelationRepository.countByRelationId(relationId);
+                projectAccessService.requireView(
+                                ticket.getProject());
+
+                return ticketRelationRepository
+                                .findByRelationId(relationId)
+                                .stream()
+                                .filter(this::canViewRelation)
+                                .count();
         }
 
-        private void validateTicket(Long ticketId) {
+        // =========================================================
+        // VALIDATION
+        // =========================================================
 
-                if (!ticketRepository.existsById(ticketId)) {
+        private void validateRequest(
+                        TicketRelationRequest request) {
+
+                if (request == null) {
                         throw new RuntimeException(
-                                        "Ticket not found with id: " + ticketId);
+                                        "Ticket relation request is required");
+                }
+
+                if (request.getTicketId() == null
+                                || request.getTicketId() <= 0) {
+
+                        throw new RuntimeException(
+                                        "Valid ticket ID is required");
+                }
+
+                if (request.getRelationId() == null
+                                || request.getRelationId() <= 0) {
+
+                        throw new RuntimeException(
+                                        "Valid relation ticket ID is required");
+                }
+
+                if (request.getType() == null
+                                || request.getType().isBlank()) {
+
+                        throw new RuntimeException(
+                                        "Relation type is required");
                 }
         }
+
+        private Ticket getTicket(
+                        Long ticketId) {
+
+                if (ticketId == null
+                                || ticketId <= 0) {
+
+                        throw new RuntimeException(
+                                        "Valid ticket ID is required");
+                }
+
+                return ticketRepository.findById(ticketId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Ticket not found with id: "
+                                                                + ticketId));
+        }
+
+        /**
+         * Both tickets must belong to the same workspace.
+         */
+        private void validateSameWorkspace(
+                        Ticket ticket,
+                        Ticket relation) {
+
+                if (ticket == null
+                                || relation == null) {
+
+                        throw new RuntimeException(
+                                        "Both tickets are required");
+                }
+
+                if (ticket.getProject() == null
+                                || relation.getProject() == null) {
+
+                        throw new RuntimeException(
+                                        "Both tickets must belong to projects");
+                }
+
+                if (ticket.getProject().getWorkspace() == null
+                                || relation.getProject().getWorkspace() == null) {
+
+                        throw new RuntimeException(
+                                        "Both tickets must belong to workspaces");
+                }
+
+                Long ticketWorkspaceId = ticket.getProject()
+                                .getWorkspace()
+                                .getId();
+
+                Long relationWorkspaceId = relation.getProject()
+                                .getWorkspace()
+                                .getId();
+
+                if (ticketWorkspaceId == null
+                                || relationWorkspaceId == null
+                                || !ticketWorkspaceId.equals(
+                                                relationWorkspaceId)) {
+
+                        throw new RuntimeException(
+                                        "Tickets from different workspaces cannot be related");
+                }
+        }
+
+        // =========================================================
+        // ACCESS VALIDATION
+        // =========================================================
+
+        private boolean canViewRelation(
+                        TicketRelation relation) {
+
+                if (relation == null
+                                || relation.getTicket() == null
+                                || relation.getRelation() == null) {
+
+                        return false;
+                }
+
+                if (relation.getTicket().getProject() == null
+                                || relation.getRelation().getProject() == null) {
+
+                        return false;
+                }
+
+                /*
+                 * A relation is visible only when both tickets are visible.
+                 */
+                return projectAccessService.canView(
+                                relation.getTicket().getProject())
+                                && projectAccessService.canView(
+                                                relation.getRelation().getProject());
+        }
+
+        private void requireViewRelation(
+                        TicketRelation relation) {
+
+                if (relation == null
+                                || relation.getTicket() == null
+                                || relation.getRelation() == null) {
+
+                        throw new RuntimeException(
+                                        "Invalid ticket relation");
+                }
+
+                Ticket ticket = relation.getTicket();
+                Ticket relatedTicket = relation.getRelation();
+
+                validateSameWorkspace(
+                                ticket,
+                                relatedTicket);
+
+                projectAccessService.requireView(
+                                ticket.getProject());
+
+                projectAccessService.requireView(
+                                relatedTicket.getProject());
+        }
+
+        // =========================================================
+        // RESPONSE MAPPER
+        // =========================================================
 
         private TicketRelationResponse mapToResponse(
                         TicketRelation relation) {
@@ -240,13 +557,35 @@ public class TicketRelationService {
                 return TicketRelationResponse.builder()
                                 .id(relation.getId())
 
-                                .ticketId(ticket.getId())
-                                .ticketName(ticket.getName())
-                                .ticketCode(ticket.getCode())
+                                .ticketId(
+                                                ticket != null
+                                                                ? ticket.getId()
+                                                                : null)
 
-                                .relationId(relatedTicket.getId())
-                                .relationName(relatedTicket.getName())
-                                .relationCode(relatedTicket.getCode())
+                                .ticketName(
+                                                ticket != null
+                                                                ? ticket.getName()
+                                                                : null)
+
+                                .ticketCode(
+                                                ticket != null
+                                                                ? ticket.getCode()
+                                                                : null)
+
+                                .relationId(
+                                                relatedTicket != null
+                                                                ? relatedTicket.getId()
+                                                                : null)
+
+                                .relationName(
+                                                relatedTicket != null
+                                                                ? relatedTicket.getName()
+                                                                : null)
+
+                                .relationCode(
+                                                relatedTicket != null
+                                                                ? relatedTicket.getCode()
+                                                                : null)
 
                                 .type(relation.getType())
                                 .sort(relation.getSort())
