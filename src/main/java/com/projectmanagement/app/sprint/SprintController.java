@@ -279,6 +279,39 @@ public class SprintController {
                                 sprintService.statistics(id));
         }
 
+        @GetMapping("/project/{projectId}/history")
+        public ResponseEntity<List<SprintHistoryResponse>> history(@PathVariable Long projectId) {
+                return ResponseEntity.ok(sprintService.history(projectId));
+        }
+
+        @GetMapping("/project/{projectId}/velocity")
+        public ResponseEntity<SprintVelocityResponse> velocity(@PathVariable Long projectId) {
+                return ResponseEntity.ok(sprintService.velocity(projectId));
+        }
+
+        @GetMapping("/{id}/report")
+        public ResponseEntity<SprintReportResponse> report(@PathVariable Long id) {
+                return ResponseEntity.ok(sprintService.report(id));
+        }
+
+        @GetMapping("/{id}/commitment")
+        public ResponseEntity<SprintCommitmentResponse> commitment(@PathVariable Long id) {
+                return ResponseEntity.ok(sprintService.commitment(id));
+        }
+
+        @GetMapping("/{id}/capacity")
+        public ResponseEntity<List<SprintCapacityResponse>> capacity(@PathVariable Long id) {
+                return ResponseEntity.ok(sprintService.getCapacity(id));
+        }
+
+        @PutMapping("/{id}/capacity")
+        public ResponseEntity<SprintCapacityResponse> saveCapacity(
+                        @PathVariable Long id,
+                        @Valid @RequestBody SprintCapacityRequest request,
+                        Authentication authentication) {
+                return ResponseEntity.ok(sprintService.saveCapacity(id, request, getUserId(authentication)));
+        }
+
         // =========================================================
         // USER ID
         // =========================================================
