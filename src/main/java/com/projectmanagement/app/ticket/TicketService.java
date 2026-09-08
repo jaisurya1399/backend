@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.audit.AuditService;
+import com.projectmanagement.app.board.BoardService;
 import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.epic.Epic;
 import com.projectmanagement.app.epic.EpicRepository;
@@ -57,6 +58,7 @@ public class TicketService {
         private final TicketNotificationService ticketNotificationService;
         private final AuditService auditService;
         private final RealtimeEventService realtimeEvents;
+        private final BoardService boardService;
 
         public TicketService(
                         TicketRepository ticketRepository,
@@ -74,7 +76,8 @@ public class TicketService {
                         CurrentUserService currentUserService,
                         TicketNotificationService ticketNotificationService,
                         AuditService auditService,
-                        RealtimeEventService realtimeEvents) {
+                        RealtimeEventService realtimeEvents,
+                        BoardService boardService) {
 
                 this.ticketRepository = ticketRepository;
                 this.projectRepository = projectRepository;
@@ -92,6 +95,7 @@ public class TicketService {
                 this.ticketNotificationService = ticketNotificationService;
                 this.auditService = auditService;
                 this.realtimeEvents = realtimeEvents;
+                this.boardService = boardService;
         }
 
         // ============================================================
@@ -741,9 +745,11 @@ public class TicketService {
                                                 "Ticket status not found with id: " + request.getStatusId()));
                 validateStatusBelongsToProject(status, ticket.getProject());
                 TicketStatus oldStatus = ticket.getStatus();
+                boardService.enforceWip(ticket, status);
                 applyStatusChange(ticket, oldStatus, status);
                 ticket.setStatus(status);
                 Ticket updated = ticketRepository.save(ticket);
+                boardService.recordTransition(updated, oldStatus, status);
                 Map<String, Object> transition = new LinkedHashMap<>();
                 transition.put("fromStatusId", oldStatus == null ? null : oldStatus.getId());
                 transition.put("toStatusId", status.getId());
