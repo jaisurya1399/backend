@@ -1,6 +1,7 @@
 package com.projectmanagement.app.ticket;
 
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 @Transactional
 public class TicketRelationService {
+
+        private static final Set<String> ALLOWED_TYPES = Set.of("BLOCKS", "IS_BLOCKED_BY", "DUPLICATES",
+                        "IS_DUPLICATED_BY", "RELATES_TO", "CLONES", "IS_CLONED_BY");
 
         private final TicketRelationRepository ticketRelationRepository;
         private final TicketRepository ticketRepository;
@@ -379,38 +383,17 @@ public class TicketRelationService {
                                 .count();
         }
 
-        // =========================================================
-        // VALIDATION
-        // =========================================================
-
-        private void validateRequest(
-                        TicketRelationRequest request) {
-
-                if (request == null) {
-                        throw new RuntimeException(
-                                        "Ticket relation request is required");
-                }
-
-                if (request.getTicketId() == null
-                                || request.getTicketId() <= 0) {
-
-                        throw new RuntimeException(
-                                        "Valid ticket ID is required");
-                }
-
-                if (request.getRelationId() == null
-                                || request.getRelationId() <= 0) {
-
-                        throw new RuntimeException(
-                                        "Valid relation ticket ID is required");
-                }
-
-                if (request.getType() == null
-                                || request.getType().isBlank()) {
-
-                        throw new RuntimeException(
-                                        "Relation type is required");
-                }
+        private void validateRequest(TicketRelationRequest request) {
+                if (request == null || request.getTicketId() == null || request.getRelationId() == null)
+                        throw new IllegalArgumentException("Both ticketId and relationId are required");
+                String type = request.getType() == null ? "" : request.getType().trim().toUpperCase();
+                if (!ALLOWED_TYPES.contains(type))
+                        throw new IllegalArgumentException("Unsupported relationship type: " + type);
+                if (request.getTicketId().equals(request.getRelationId()))
+                        throw new IllegalArgumentException("A ticket cannot be related to itself");
+                if (request.getSort() != null && request.getSort() < 1)
+                        throw new IllegalArgumentException("Sort must be positive");
+                request.setType(type);
         }
 
         private Ticket getTicket(

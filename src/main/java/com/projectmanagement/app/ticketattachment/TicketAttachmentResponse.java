@@ -19,6 +19,8 @@ public class TicketAttachmentResponse {
 
     private Long ticketId;
 
+    private Long commentId;
+
     private String fileName;
 
     private String originalName;

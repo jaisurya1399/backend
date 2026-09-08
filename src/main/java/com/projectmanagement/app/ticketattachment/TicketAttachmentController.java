@@ -39,6 +39,20 @@ public class TicketAttachmentController {
                                 attachmentService.getByTicketId(ticketId));
         }
 
+        @GetMapping("/comment/{commentId}")
+        @PreAuthorize("hasAuthority('ticket_attachment.view') or hasRole('ADMIN')")
+        public ResponseEntity<List<TicketAttachmentResponse>> getByCommentId(@PathVariable @Positive Long commentId) {
+                return ResponseEntity.ok(attachmentService.getByCommentId(commentId));
+        }
+
+        @PostMapping(value = "/comment/{commentId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("hasAuthority('ticket_attachment.create') or hasRole('ADMIN')")
+        public ResponseEntity<TicketAttachmentResponse> uploadToComment(@PathVariable @Positive Long commentId,
+                        @RequestPart("file") MultipartFile file) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(attachmentService.uploadToComment(commentId, file));
+        }
+
         /**
          * Upload attachment.
          */

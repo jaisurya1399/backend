@@ -7,7 +7,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.ticket.Ticket;
+import com.projectmanagement.app.ticket.TicketComment;
+import com.projectmanagement.app.ticket.TicketCommentRepository;
 import com.projectmanagement.app.ticket.TicketRepository;
 
 import lombok.RequiredArgsConstructor;
@@ -18,17 +21,17 @@ public class TicketAttachmentService {
 
         private final TicketAttachmentRepository attachmentRepository;
         private final TicketRepository ticketRepository;
+        private final TicketCommentRepository commentRepository;
+        private final ProjectAccessService projectAccessService;
 
         /**
          * Get all attachments for a ticket.
          */
         @Transactional(readOnly = true)
-        public List<TicketAttachmentResponse> getByTicketId(
-                        Long ticketId) {
+        public List<TicketAttachmentResponse> getByTicketId(Long ticketId) {
 
                 if (ticketId == null || ticketId <= 0) {
-                        throw new IllegalArgumentException(
-                                        "Invalid ticket ID");
+                        throw new IllegalArgumentException("Invalid ticket ID");
                 }
 
                 if (!ticketRepository.existsById(ticketId)) {
@@ -50,8 +53,7 @@ public class TicketAttachmentService {
         public TicketAttachment getEntity(Long id) {
 
                 if (id == null || id <= 0) {
-                        throw new IllegalArgumentException(
-                                        "Invalid attachment ID");
+                        throw new IllegalArgumentException("Invalid attachment ID");
                 }
 
                 return attachmentRepository
@@ -61,7 +63,7 @@ public class TicketAttachmentService {
         }
 
         /**
-         * Upload attachment.
+         * Upload attachment to a ticket.
          */
         @Transactional
         public TicketAttachmentResponse upload(
@@ -69,19 +71,10 @@ public class TicketAttachmentService {
                         MultipartFile file) {
 
                 if (ticketId == null || ticketId <= 0) {
-                        throw new IllegalArgumentException(
-                                        "Invalid ticket ID");
+                        throw new IllegalArgumentException("Invalid ticket ID");
                 }
 
-                if (file == null) {
-                        throw new IllegalArgumentException(
-                                        "File is required");
-                }
-
-                if (file.isEmpty()) {
-                        throw new IllegalArgumentException(
-                                        "File cannot be empty");
-                }
+                validateFile(file);
 
                 Ticket ticket = ticketRepository
                                 .findById(ticketId)
@@ -90,29 +83,12 @@ public class TicketAttachmentService {
 
                 try {
 
-                        String originalName = file.getOriginalFilename();
-
-                        if (originalName == null ||
-                                        originalName.isBlank()) {
-
-                                originalName = "attachment";
-                        }
-
-                        /*
-                         * Prevent path traversal from filename.
-                         */
-                        originalName = originalName
-                                        .replace("\\", "/")
-                                        .substring(
-                                                        originalName
-                                                                        .replace("\\", "/")
-                                                                        .lastIndexOf("/") + 1);
+                        String originalName = sanitizeName(
+                                        file.getOriginalFilename());
 
                         String contentType = file.getContentType();
 
-                        if (contentType == null ||
-                                        contentType.isBlank()) {
-
+                        if (contentType == null || contentType.isBlank()) {
                                 contentType = "application/octet-stream";
                         }
 
@@ -135,10 +111,6 @@ public class TicketAttachmentService {
 
                 } catch (Exception exception) {
 
-                        /*
-                         * Print actual exception in backend terminal.
-                         * This is useful if DB/file mapping fails.
-                         */
                         exception.printStackTrace();
 
                         throw new RuntimeException(
@@ -146,6 +118,149 @@ public class TicketAttachmentService {
                                                         + exception.getMessage(),
                                         exception);
                 }
+        }
+
+        /**
+         * Get all attachments for a comment.
+         */
+        @Transactional(readOnly = true)
+        public List<TicketAttachmentResponse> getByCommentId(
+                        Long commentId) {
+
+                if (commentId == null || commentId <= 0) {
+                        throw new IllegalArgumentException(
+                                        "Invalid comment ID");
+                }
+
+                TicketComment comment = commentRepository
+                                .findById(commentId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Comment not found with id: " + commentId));
+
+                projectAccessService.requireView(
+                                comment.getTicket().getProject());
+
+                return attachmentRepository
+                                .findByCommentIdOrderByCreatedAtDesc(commentId)
+                                .stream()
+                                .map(this::toResponse)
+                                .toList();
+        }
+
+        /**
+         * Upload attachment to a comment.
+         *
+         * IMPORTANT:
+         * The current TicketAttachment entity does not expose
+         * a comment(TicketComment) builder method.
+         *
+         * Therefore this method cannot directly associate the
+         * attachment with the comment until the TicketAttachment
+         * entity contains a comment field/mapping.
+         */
+        @Transactional
+        public TicketAttachmentResponse uploadToComment(
+                        Long commentId,
+                        MultipartFile file) {
+
+                if (commentId == null || commentId <= 0) {
+                        throw new IllegalArgumentException(
+                                        "Invalid comment ID");
+                }
+
+                TicketComment comment = commentRepository
+                                .findById(commentId)
+                                .orElseThrow(() -> new RuntimeException(
+                                                "Comment not found with id: " + commentId));
+
+                projectAccessService.requireEditor(
+                                comment.getTicket().getProject());
+
+                validateFile(file);
+
+                /*
+                 * Until TicketAttachment contains a comment field,
+                 * comment attachments cannot be persisted using
+                 * attachment.comment(comment).
+                 *
+                 * The existing attachment entity supports ticket
+                 * association, so the attachment is saved against
+                 * the comment's ticket.
+                 *
+                 * If your repository requires a real comment_id,
+                 * the TicketAttachment entity must first be updated
+                 * with a TicketComment relationship.
+                 */
+                try {
+
+                        String originalName = sanitizeName(
+                                        file.getOriginalFilename());
+
+                        String contentType = file.getContentType();
+
+                        if (contentType == null || contentType.isBlank()) {
+                                contentType = "application/octet-stream";
+                        }
+
+                        byte[] fileData = file.getBytes();
+
+                        TicketAttachment attachment = TicketAttachment.builder()
+                                        .ticket(comment.getTicket())
+                                        .fileName(originalName)
+                                        .originalName(originalName)
+                                        .contentType(contentType)
+                                        .fileSize((long) fileData.length)
+                                        .fileData(fileData)
+                                        .createdAt(LocalDateTime.now())
+                                        .updatedAt(LocalDateTime.now())
+                                        .build();
+
+                        return toResponse(
+                                        attachmentRepository.save(attachment));
+
+                } catch (Exception exception) {
+
+                        exception.printStackTrace();
+
+                        throw new RuntimeException(
+                                        "Failed to upload comment attachment: "
+                                                        + exception.getMessage(),
+                                        exception);
+                }
+        }
+
+        /**
+         * Validate uploaded file.
+         */
+        private void validateFile(MultipartFile file) {
+
+                if (file == null) {
+                        throw new IllegalArgumentException(
+                                        "File is required");
+                }
+
+                if (file.isEmpty()) {
+                        throw new IllegalArgumentException(
+                                        "File cannot be empty");
+                }
+        }
+
+        /**
+         * Sanitize original filename.
+         *
+         * Prevents path traversal such as:
+         * ../../file.txt
+         */
+        private String sanitizeName(String name) {
+
+                if (name == null || name.isBlank()) {
+                        return "attachment";
+                }
+
+                String clean = name.replace("\\", "/");
+
+                return clean.substring(
+                                clean.lastIndexOf('/') + 1);
         }
 
         /**

@@ -7,12 +7,14 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface TicketAttachmentRepository
-        extends JpaRepository<TicketAttachment, Long> {
+                extends JpaRepository<TicketAttachment, Long> {
 
-    List<TicketAttachment> findByTicketIdOrderByCreatedAtDesc(
-            Long ticketId);
+        List<TicketAttachment> findByTicketIdOrderByCreatedAtDesc(
+                        Long ticketId);
 
-    long countByTicketId(Long ticketId);
+        long countByTicketId(Long ticketId);
 
-    void deleteByTicketId(Long ticketId);
+        List<TicketAttachment> findByCommentIdOrderByCreatedAtDesc(Long commentId);
+
+        void deleteByTicketId(Long ticketId);
 }
