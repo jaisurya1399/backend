@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
@@ -33,13 +32,7 @@ public class ProjectController {
 
         @GetMapping
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<ProjectResponse>> getAllProjects(
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getProjectsByWorkspace(workspaceId));
-                }
+        public ResponseEntity<List<ProjectResponse>> getAllProjects() {
 
                 return ResponseEntity.ok(
                                 projectService.getAllProjects());
@@ -51,13 +44,7 @@ public class ProjectController {
 
         @GetMapping("/active")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
-        public ResponseEntity<List<ProjectResponse>> getAllActiveProjects(
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getActiveProjectsByWorkspace(workspaceId));
-                }
+        public ResponseEntity<List<ProjectResponse>> getAllActiveProjects() {
 
                 return ResponseEntity.ok(
                                 projectService.getAllActiveProjects());
@@ -83,15 +70,7 @@ public class ProjectController {
         @GetMapping("/owner/{ownerId}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getProjectsByOwner(
-                        @PathVariable Long ownerId,
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getProjectsByOwner(
-                                                        ownerId,
-                                                        workspaceId));
-                }
+                        @PathVariable Long ownerId) {
 
                 return ResponseEntity.ok(
                                 projectService.getProjectsByOwner(ownerId));
@@ -104,15 +83,7 @@ public class ProjectController {
         @GetMapping("/owner/{ownerId}/active")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getActiveProjectsByOwner(
-                        @PathVariable Long ownerId,
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getActiveProjectsByOwner(
-                                                        ownerId,
-                                                        workspaceId));
-                }
+                        @PathVariable Long ownerId) {
 
                 return ResponseEntity.ok(
                                 projectService.getActiveProjectsByOwner(ownerId));
@@ -125,15 +96,7 @@ public class ProjectController {
         @GetMapping("/status/{statusId}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getProjectsByStatus(
-                        @PathVariable Long statusId,
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getProjectsByStatus(
-                                                        statusId,
-                                                        workspaceId));
-                }
+                        @PathVariable Long statusId) {
 
                 return ResponseEntity.ok(
                                 projectService.getProjectsByStatus(statusId));
@@ -146,15 +109,7 @@ public class ProjectController {
         @GetMapping("/status/{statusId}/active")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<List<ProjectResponse>> getActiveProjectsByStatus(
-                        @PathVariable Long statusId,
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getActiveProjectsByStatus(
-                                                        statusId,
-                                                        workspaceId));
-                }
+                        @PathVariable Long statusId) {
 
                 return ResponseEntity.ok(
                                 projectService.getActiveProjectsByStatus(statusId));
@@ -167,15 +122,7 @@ public class ProjectController {
         @GetMapping("/name/{name}")
         @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
         public ResponseEntity<ProjectResponse> getProjectByName(
-                        @PathVariable String name,
-                        @RequestParam(required = false) Long workspaceId) {
-
-                if (workspaceId != null) {
-                        return ResponseEntity.ok(
-                                        projectService.getProjectByName(
-                                                        name,
-                                                        workspaceId));
-                }
+                        @PathVariable String name) {
 
                 return ResponseEntity.ok(
                                 projectService.getProjectByName(name));

@@ -18,8 +18,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.user.User;
-import com.projectmanagement.app.workspace.Workspace;
-import com.projectmanagement.app.workspace.WorkspaceMemberRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ProjectAccessServiceTest {
@@ -30,9 +28,6 @@ class ProjectAccessServiceTest {
     @Mock
     private ProjectUserRepository projectUserRepository;
 
-    @Mock
-    private WorkspaceMemberRepository workspaceMemberRepository;
-
     private ProjectAccessService service;
     private Project project;
 
@@ -40,8 +35,7 @@ class ProjectAccessServiceTest {
     void setUp() {
         service = new ProjectAccessService(
                 currentUserService,
-                projectUserRepository,
-                workspaceMemberRepository);
+                projectUserRepository);
 
         User owner = User.builder()
                 .id(10L)
@@ -49,22 +43,15 @@ class ProjectAccessServiceTest {
                 .email("owner@example.com")
                 .build();
 
-        Workspace workspace = Workspace.builder()
-                .id(20L)
-                .name("Workspace")
-                .slug("workspace")
-                .build();
-
         project = Project.builder()
                 .id(30L)
                 .owner(owner)
-                .workspace(workspace)
                 .build();
 
         /*
          * This is used by all normal-user tests.
          *
-         * Do NOT put the workspace membership stub here because
+         * Do NOT put the currentUserId stub anywhere else, since
          * system-admin tests intentionally bypass membership checks.
          */
         when(currentUserService.getCurrentUserId()).thenReturn(11L);
@@ -86,10 +73,6 @@ class ProjectAccessServiceTest {
         ProjectUser membership = ProjectUser.builder()
                 .role("VIEWER")
                 .build();
-
-        when(workspaceMemberRepository
-                .existsByWorkspaceIdAndUserId(20L, 11L))
-                .thenReturn(true);
 
         when(projectUserRepository
                 .existsByProjectIdAndUserId(30L, 11L))
@@ -117,10 +100,6 @@ class ProjectAccessServiceTest {
                 .role("MEMBER")
                 .build();
 
-        when(workspaceMemberRepository
-                .existsByWorkspaceIdAndUserId(20L, 11L))
-                .thenReturn(true);
-
         when(projectUserRepository
                 .existsByProjectIdAndUserId(30L, 11L))
                 .thenReturn(true);
@@ -144,10 +123,6 @@ class ProjectAccessServiceTest {
                 .role("ADMIN")
                 .build();
 
-        when(workspaceMemberRepository
-                .existsByWorkspaceIdAndUserId(20L, 11L))
-                .thenReturn(true);
-
         when(projectUserRepository
                 .existsByProjectIdAndUserId(30L, 11L))
                 .thenReturn(true);
@@ -161,21 +136,14 @@ class ProjectAccessServiceTest {
     }
 
     @Test
-    void workspaceOutsiderCannotViewEvenWhenProjectMembershipExists() {
+    void nonMemberNonOwnerCannotView() {
 
         /*
-         * The workspace check must fail first.
+         * Neither the project owner nor an assigned project member.
          */
-        when(workspaceMemberRepository
-                .existsByWorkspaceIdAndUserId(20L, 11L))
+        when(projectUserRepository
+                .existsByProjectIdAndUserId(30L, 11L))
                 .thenReturn(false);
-
-        /*
-         * Deliberately DO NOT stub project membership here.
-         *
-         * If workspace access is denied, the service should never
-         * need to check project membership.
-         */
 
         assertFalse(service.canView(project));
 
@@ -195,16 +163,13 @@ class ProjectAccessServiceTest {
                                 new SimpleGrantedAuthority("ROLE_ADMIN"))));
 
         /*
-         * Do NOT stub workspace membership.
-         *
-         * A system admin should bypass both workspace and project
-         * membership checks.
+         * A system admin should bypass project membership checks
+         * entirely, so the project-user repository is never consulted.
          */
 
         assertDoesNotThrow(
                 () -> service.requireManager(project));
 
         verifyNoInteractions(projectUserRepository);
-        verifyNoInteractions(workspaceMemberRepository);
     }
 }

@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.auth.CurrentUserService;
-import com.projectmanagement.app.workspace.WorkspaceMemberRepository;
 
 @Service
 @Transactional(readOnly = true)
@@ -14,24 +13,21 @@ public class ProjectAccessService {
 
     private final CurrentUserService currentUserService;
     private final ProjectUserRepository projectUserRepository;
-    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     public ProjectAccessService(
             CurrentUserService currentUserService,
-            ProjectUserRepository projectUserRepository,
-            WorkspaceMemberRepository workspaceMemberRepository) {
+            ProjectUserRepository projectUserRepository) {
 
         this.currentUserService = currentUserService;
         this.projectUserRepository = projectUserRepository;
-        this.workspaceMemberRepository = workspaceMemberRepository;
     }
 
     /**
      * Checks whether the current user can view the project.
      *
      * System administrators can access all projects.
-     * Other users must first belong to the project's workspace and then
-     * either own the project or be explicitly assigned to the project.
+     * Other users must either own the project or be explicitly
+     * assigned to the project.
      */
     public boolean canView(Project project) {
         if (project == null) {
@@ -42,10 +38,6 @@ public class ProjectAccessService {
             return true;
         }
 
-        if (project.getWorkspace() == null || project.getWorkspace().getId() == null) {
-            return false;
-        }
-
         if (project.getOwner() == null || project.getOwner().getId() == null) {
             return false;
         }
@@ -53,16 +45,6 @@ public class ProjectAccessService {
         Long userId = currentUserService.getCurrentUserId();
 
         if (userId == null) {
-            return false;
-        }
-
-        Long workspaceId = project.getWorkspace().getId();
-
-        boolean workspaceMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(
-                workspaceId,
-                userId);
-
-        if (!workspaceMember) {
             return false;
         }
 

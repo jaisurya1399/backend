@@ -3,7 +3,6 @@ package com.projectmanagement.app.project;
 import java.time.LocalDateTime;
 
 import com.projectmanagement.app.user.User;
-import com.projectmanagement.app.workspace.Workspace;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,7 +27,6 @@ import lombok.Setter;
 @Table(name = "projects", indexes = {
         @Index(name = "idx_projects_owner_id", columnList = "owner_id"),
         @Index(name = "idx_projects_status_id", columnList = "status_id"),
-        @Index(name = "idx_projects_workspace_id", columnList = "workspace_id"),
         @Index(name = "idx_projects_deleted_at", columnList = "deleted_at")
 })
 @Getter
@@ -51,10 +49,6 @@ public class Project {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false, foreignKey = @ForeignKey(name = "projects_owner_id_foreign"))
     private User owner;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "workspace_id", nullable = false, foreignKey = @ForeignKey(name = "projects_workspace_id_foreign"))
-    private Workspace workspace;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "status_id", nullable = false, foreignKey = @ForeignKey(name = "projects_status_id_foreign"))

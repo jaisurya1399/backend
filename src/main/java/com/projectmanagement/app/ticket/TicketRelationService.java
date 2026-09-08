@@ -143,10 +143,6 @@ public class TicketRelationService {
                 Ticket ticket = getTicket(ticketId);
                 Ticket relatedTicket = getTicket(relationId);
 
-                validateSameWorkspace(
-                                ticket,
-                                relatedTicket);
-
                 projectAccessService.requireView(
                                 ticket.getProject());
 
@@ -186,13 +182,6 @@ public class TicketRelationService {
                  */
                 projectAccessService.requireView(
                                 relation.getProject());
-
-                /*
-                 * Relations cannot cross workspace boundaries.
-                 */
-                validateSameWorkspace(
-                                ticket,
-                                relation);
 
                 if (ticket.getId().equals(
                                 relation.getId())) {
@@ -258,10 +247,6 @@ public class TicketRelationService {
 
                 projectAccessService.requireView(
                                 relation.getProject());
-
-                validateSameWorkspace(
-                                ticket,
-                                relation);
 
                 if (ticket.getId().equals(
                                 relation.getId())) {
@@ -444,52 +429,6 @@ public class TicketRelationService {
                                                                 + ticketId));
         }
 
-        /**
-         * Both tickets must belong to the same workspace.
-         */
-        private void validateSameWorkspace(
-                        Ticket ticket,
-                        Ticket relation) {
-
-                if (ticket == null
-                                || relation == null) {
-
-                        throw new RuntimeException(
-                                        "Both tickets are required");
-                }
-
-                if (ticket.getProject() == null
-                                || relation.getProject() == null) {
-
-                        throw new RuntimeException(
-                                        "Both tickets must belong to projects");
-                }
-
-                if (ticket.getProject().getWorkspace() == null
-                                || relation.getProject().getWorkspace() == null) {
-
-                        throw new RuntimeException(
-                                        "Both tickets must belong to workspaces");
-                }
-
-                Long ticketWorkspaceId = ticket.getProject()
-                                .getWorkspace()
-                                .getId();
-
-                Long relationWorkspaceId = relation.getProject()
-                                .getWorkspace()
-                                .getId();
-
-                if (ticketWorkspaceId == null
-                                || relationWorkspaceId == null
-                                || !ticketWorkspaceId.equals(
-                                                relationWorkspaceId)) {
-
-                        throw new RuntimeException(
-                                        "Tickets from different workspaces cannot be related");
-                }
-        }
-
         // =========================================================
         // ACCESS VALIDATION
         // =========================================================
@@ -532,10 +471,6 @@ public class TicketRelationService {
 
                 Ticket ticket = relation.getTicket();
                 Ticket relatedTicket = relation.getRelation();
-
-                validateSameWorkspace(
-                                ticket,
-                                relatedTicket);
 
                 projectAccessService.requireView(
                                 ticket.getProject());

@@ -21,10 +21,6 @@ public class ProjectResponse {
 
     private String description;
 
-    private Long workspaceId;
-    private String workspaceName;
-    private String workspaceSlug;
-
     private Long ownerId;
     private String ownerName;
     private String ownerEmail;

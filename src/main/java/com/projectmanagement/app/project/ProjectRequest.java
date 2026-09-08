@@ -23,10 +23,6 @@ public class ProjectRequest {
 
     private String description;
 
-    @NotNull(message = "Workspace ID is required")
-    @Positive(message = "Workspace ID must be greater than zero")
-    private Long workspaceId;
-
     @NotNull(message = "Owner ID is required")
     @Positive(message = "Owner ID must be greater than zero")
     private Long ownerId;

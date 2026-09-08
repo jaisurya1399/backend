@@ -22,53 +22,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findByDeletedAtIsNotNull();
 
     // ============================================================
-    // WORKSPACE
-    // ============================================================
-
-    /**
-     * Returns all tickets belonging to projects inside the workspace.
-     * Includes both active and deleted tickets.
-     */
-    @Query("""
-            SELECT t
-            FROM Ticket t
-            WHERE t.project.workspace.id = :workspaceId
-            ORDER BY t.id DESC
-            """)
-    List<Ticket> findByWorkspaceId(
-            @Param("workspaceId") Long workspaceId);
-
-    /**
-     * Returns only active tickets belonging to projects inside the workspace.
-     */
-    @Query("""
-            SELECT t
-            FROM Ticket t
-            WHERE t.project.workspace.id = :workspaceId
-              AND t.deletedAt IS NULL
-            ORDER BY t.id DESC
-            """)
-    List<Ticket> findByWorkspaceIdAndDeletedAtIsNull(
-            @Param("workspaceId") Long workspaceId);
-
-    /**
-     * Returns only deleted tickets belonging to projects inside the workspace.
-     */
-    @Query("""
-            SELECT t
-            FROM Ticket t
-            WHERE t.project.workspace.id = :workspaceId
-              AND t.deletedAt IS NOT NULL
-            ORDER BY t.id DESC
-            """)
-    List<Ticket> findByWorkspaceIdAndDeletedAtIsNotNull(
-            @Param("workspaceId") Long workspaceId);
-
-    long countByProjectWorkspaceId(Long workspaceId);
-
-    long countByProjectWorkspaceIdAndDeletedAtIsNull(Long workspaceId);
-
-    // ============================================================
     // PROJECT
     // ============================================================
 
@@ -310,64 +263,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
               AND (:rootOnly = false OR t.parent IS NULL)
             """)
     Page<Ticket> searchActiveByProject(
-            @Param("projectId") Long projectId,
-            @Param("q") String q,
-            @Param("statusId") Long statusId,
-            @Param("priorityId") Long priorityId,
-            @Param("responsibleId") Long responsibleId,
-            @Param("sprintId") Long sprintId,
-            @Param("epicId") Long epicId,
-            @Param("labelId") Long labelId,
-            @Param("rootOnly") boolean rootOnly,
-            Pageable pageable);
-
-    // ============================================================
-    // WORKSPACE + PROJECT FILTER
-    // ============================================================
-
-    @Query(value = """
-            SELECT DISTINCT t
-            FROM Ticket t
-            LEFT JOIN t.labels l
-            WHERE t.project.id = :projectId
-              AND t.project.workspace.id = :workspaceId
-              AND t.deletedAt IS NULL
-              AND (
-                    :q IS NULL
-                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
-                    OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%'))
-                    OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%'))
-                  )
-              AND (:statusId IS NULL OR t.status.id = :statusId)
-              AND (:priorityId IS NULL OR t.priority.id = :priorityId)
-              AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
-              AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
-              AND (:epicId IS NULL OR t.epic.id = :epicId)
-              AND (:labelId IS NULL OR l.id = :labelId)
-              AND (:rootOnly = false OR t.parent IS NULL)
-            """, countQuery = """
-            SELECT COUNT(DISTINCT t)
-            FROM Ticket t
-            LEFT JOIN t.labels l
-            WHERE t.project.id = :projectId
-              AND t.project.workspace.id = :workspaceId
-              AND t.deletedAt IS NULL
-              AND (
-                    :q IS NULL
-                    OR LOWER(t.name) LIKE LOWER(CONCAT('%', :q, '%'))
-                    OR LOWER(t.content) LIKE LOWER(CONCAT('%', :q, '%'))
-                    OR LOWER(t.code) LIKE LOWER(CONCAT('%', :q, '%'))
-                  )
-              AND (:statusId IS NULL OR t.status.id = :statusId)
-              AND (:priorityId IS NULL OR t.priority.id = :priorityId)
-              AND (:responsibleId IS NULL OR t.responsible.id = :responsibleId)
-              AND (:sprintId IS NULL OR t.sprint.id = :sprintId)
-              AND (:epicId IS NULL OR t.epic.id = :epicId)
-              AND (:labelId IS NULL OR l.id = :labelId)
-              AND (:rootOnly = false OR t.parent IS NULL)
-            """)
-    Page<Ticket> searchActiveByWorkspaceAndProject(
-            @Param("workspaceId") Long workspaceId,
             @Param("projectId") Long projectId,
             @Param("q") String q,
             @Param("statusId") Long statusId,
