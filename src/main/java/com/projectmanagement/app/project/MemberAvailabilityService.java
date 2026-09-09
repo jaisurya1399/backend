@@ -255,9 +255,14 @@ public class MemberAvailabilityService {
             case HALF_DAY -> projectWorkingHoursService
                     .getEffectiveHours(projectId, date)
                     .divide(BigDecimal.valueOf(2));
-            case AVAILABLE -> requested == null
-                    ? projectWorkingHoursService.getEffectiveHours(projectId, date)
-                    : requested;
+            case AVAILABLE -> {
+                BigDecimal workingHours = projectWorkingHoursService
+                        .getEffectiveHours(projectId, date);
+                if (requested == null) {
+                    yield workingHours;
+                }
+                yield requested.max(BigDecimal.ZERO).min(workingHours);
+            }
         };
     }
 
