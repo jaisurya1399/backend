@@ -29,7 +29,7 @@ public class MemberAvailabilityController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MemberAvailabilityResponse>> getProjectAvailability(
             @PathVariable Long projectId,
             @RequestParam LocalDate startDate,
@@ -38,7 +38,7 @@ public class MemberAvailabilityController {
     }
 
     @GetMapping("/user/{userId}")
-    @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<MemberAvailabilityResponse>> getUserAvailability(
             @PathVariable Long projectId,
             @PathVariable Long userId,
@@ -48,7 +48,7 @@ public class MemberAvailabilityController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<MemberAvailabilityResponse> create(
             @PathVariable Long projectId,
             @Valid @RequestBody MemberAvailabilityRequest request) {
@@ -56,7 +56,7 @@ public class MemberAvailabilityController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<MemberAvailabilityResponse> update(
             @PathVariable Long projectId,
             @PathVariable Long id,
@@ -65,7 +65,7 @@ public class MemberAvailabilityController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('project.update') or hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> delete(
             @PathVariable Long projectId,
             @PathVariable Long id) {

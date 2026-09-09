@@ -4,9 +4,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-import org.springframework.stereotype.Service;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.auth.CurrentUserService;
@@ -17,15 +17,13 @@ import com.projectmanagement.app.user.UserRepository;
 @Transactional
 public class MemberAvailabilityService {
 
-    private static final BigDecimal DEFAULT_WORKING_HOURS = BigDecimal.valueOf(8);
-    private static final BigDecimal HALF_DAY_HOURS = BigDecimal.valueOf(4);
-
     private final MemberAvailabilityRepository repository;
     private final ProjectRepository projectRepository;
     private final ProjectUserRepository projectUserRepository;
     private final UserRepository userRepository;
     private final ProjectAccessService projectAccessService;
     private final CurrentUserService currentUserService;
+    private final ProjectWorkingHoursService projectWorkingHoursService;
 
     public MemberAvailabilityService(
             MemberAvailabilityRepository repository,
@@ -33,13 +31,15 @@ public class MemberAvailabilityService {
             ProjectUserRepository projectUserRepository,
             UserRepository userRepository,
             ProjectAccessService projectAccessService,
-            CurrentUserService currentUserService) {
+            CurrentUserService currentUserService,
+            ProjectWorkingHoursService projectWorkingHoursService) {
         this.repository = repository;
         this.projectRepository = projectRepository;
         this.projectUserRepository = projectUserRepository;
         this.userRepository = userRepository;
         this.projectAccessService = projectAccessService;
         this.currentUserService = currentUserService;
+        this.projectWorkingHoursService = projectWorkingHoursService;
     }
 
     @Transactional(readOnly = true)
@@ -127,7 +127,8 @@ public class MemberAvailabilityService {
                 .user(user)
                 .availabilityDate(request.getAvailabilityDate())
                 .availabilityType(request.getAvailabilityType())
-                .availableHours(normalizeHours(request.getAvailabilityType(), request.getAvailableHours()))
+                .availableHours(normalizeHours(projectId, request.getAvailabilityDate(), request.getAvailabilityType(),
+                        request.getAvailableHours()))
                 .reason(normalizeReason(request.getReason()))
                 .build();
 
@@ -182,7 +183,8 @@ public class MemberAvailabilityService {
         entry.setUser(user);
         entry.setAvailabilityDate(request.getAvailabilityDate());
         entry.setAvailabilityType(request.getAvailabilityType());
-        entry.setAvailableHours(normalizeHours(request.getAvailabilityType(), request.getAvailableHours()));
+        entry.setAvailableHours(normalizeHours(projectId, request.getAvailabilityDate(), request.getAvailabilityType(),
+                request.getAvailableHours()));
         entry.setReason(normalizeReason(request.getReason()));
 
         return toResponse(repository.save(entry));
@@ -199,7 +201,8 @@ public class MemberAvailabilityService {
     }
 
     private User resolveUser(Long projectId, Long userId) {
-        if (userId == null) return null;
+        if (userId == null)
+            return null;
         requireProjectMember(projectId, userId);
         return userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -218,7 +221,8 @@ public class MemberAvailabilityService {
         ProjectUser membership = projectUserRepository.findByProjectIdAndUserId(projectId, userId)
                 .orElseThrow(() -> new RuntimeException("User is not assigned to this project"));
         if (!Boolean.TRUE.equals(membership.getAvailabilitySelfUpdateOpen())) {
-            throw new RuntimeException("Availability submission is not open. Please contact the project administrator.");
+            throw new RuntimeException(
+                    "Availability submission is not open. Please contact the project administrator.");
         }
     }
 
@@ -240,11 +244,20 @@ public class MemberAvailabilityService {
         }
     }
 
-    private BigDecimal normalizeHours(MemberAvailabilityType type, BigDecimal requested) {
+    private BigDecimal normalizeHours(
+            Long projectId,
+            LocalDate date,
+            MemberAvailabilityType type,
+            BigDecimal requested) {
+
         return switch (type) {
             case HOLIDAY, UNAVAILABLE -> BigDecimal.ZERO;
-            case HALF_DAY -> HALF_DAY_HOURS;
-            case AVAILABLE -> requested == null ? DEFAULT_WORKING_HOURS : requested;
+            case HALF_DAY -> projectWorkingHoursService
+                    .getEffectiveHours(projectId, date)
+                    .divide(BigDecimal.valueOf(2));
+            case AVAILABLE -> requested == null
+                    ? projectWorkingHoursService.getEffectiveHours(projectId, date)
+                    : requested;
         };
     }
 
@@ -253,16 +266,20 @@ public class MemberAvailabilityService {
     }
 
     private boolean sameUser(User a, User b) {
-        if (a == null || b == null) return a == b;
+        if (a == null || b == null)
+            return a == b;
         return a.getId().equals(b.getId());
     }
 
     private boolean isManager(Project project, Long userId) {
-        if (userId == null) return false;
+        if (userId == null)
+            return false;
 
-        if (isSystemAdmin()) return true;
+        if (isSystemAdmin())
+            return true;
 
-        if (project.getOwner() != null && userId.equals(project.getOwner().getId())) return true;
+        if (project.getOwner() != null && userId.equals(project.getOwner().getId()))
+            return true;
         return projectUserRepository.findByProjectIdAndUserId(project.getId(), userId)
                 .map(member -> "ADMIN".equalsIgnoreCase(member.getRole())
                         || "PROJECT_ADMIN".equalsIgnoreCase(member.getRole()))

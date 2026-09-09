@@ -5,7 +5,6 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
 
@@ -17,20 +16,17 @@ public class ProjectUserService {
         private final UserRepository userRepository;
         private final ProjectRepository projectRepository;
         private final ProjectAccessService projectAccessService;
-        private final CurrentUserService currentUserService;
 
         public ProjectUserService(
                         ProjectUserRepository projectUserRepository,
                         ProjectRepository projectRepository,
                         UserRepository userRepository,
-                        ProjectAccessService projectAccessService,
-                        CurrentUserService currentUserService) {
+                        ProjectAccessService projectAccessService) {
 
                 this.projectUserRepository = projectUserRepository;
                 this.projectRepository = projectRepository;
                 this.userRepository = userRepository;
                 this.projectAccessService = projectAccessService;
-                this.currentUserService = currentUserService;
         }
 
         // -------------------------------------------------------------------------
