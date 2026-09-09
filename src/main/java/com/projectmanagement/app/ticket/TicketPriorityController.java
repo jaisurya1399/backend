@@ -148,6 +148,12 @@ public class TicketPriorityController {
                 return ResponseEntity.noContent().build();
         }
 
+        @PutMapping("/reorder")
+        @PreAuthorize("hasAuthority('ticket_priority.update') or hasRole('ADMIN')")
+        public ResponseEntity<List<TicketPriorityResponse>> reorder(@RequestBody List<Long> ids) {
+                return ResponseEntity.ok(ticketPriorityService.reorder(ids));
+        }
+
         // =========================================================
         // RESTORE
         // =========================================================

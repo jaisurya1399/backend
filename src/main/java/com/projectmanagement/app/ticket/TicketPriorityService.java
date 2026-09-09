@@ -111,6 +111,7 @@ public class TicketPriorityService {
 
                 TicketPriority priority = TicketPriority.builder()
                                 .name(request.getName().trim())
+                                .displayOrder(request.getDisplayOrder() == null ? 0 : request.getDisplayOrder())
                                 .color(
                                                 request.getColor() == null ||
                                                                 request.getColor().isBlank()
@@ -153,6 +154,8 @@ public class TicketPriorityService {
                                 id);
 
                 priority.setName(request.getName().trim());
+                if (request.getDisplayOrder() != null)
+                        priority.setDisplayOrder(request.getDisplayOrder());
 
                 if (request.getColor() != null &&
                                 !request.getColor().isBlank()) {
@@ -303,6 +306,20 @@ public class TicketPriorityService {
         }
 
         // =========================================================
+        // REORDER
+        // =========================================================
+        public List<TicketPriorityResponse> reorder(List<Long> ids) {
+                if (ids == null || ids.isEmpty())
+                        throw new RuntimeException("Priority order is required");
+                for (int i = 0; i < ids.size(); i++) {
+                        TicketPriority priority = ticketPriorityRepository.findById(ids.get(i))
+                                        .orElseThrow(() -> new RuntimeException("Ticket priority not found"));
+                        priority.setDisplayOrder(i);
+                }
+                return getAll();
+        }
+
+        // =========================================================
         // ENTITY -> RESPONSE
         // =========================================================
 
@@ -314,6 +331,7 @@ public class TicketPriorityService {
                                 .name(priority.getName())
                                 .color(priority.getColor())
                                 .isDefault(priority.getIsDefault())
+                                .displayOrder(priority.getDisplayOrder())
                                 .deletedAt(priority.getDeletedAt())
                                 .createdAt(priority.getCreatedAt())
                                 .updatedAt(priority.getUpdatedAt())

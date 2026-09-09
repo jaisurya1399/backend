@@ -49,6 +49,13 @@ public class BoardController {
         return ResponseEntity.ok(service.saveColumns(projectId, request));
     }
 
+    @GetMapping("/project/{projectId}/history")
+    @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
+    public ResponseEntity<List<BoardStatusHistory>> history(@PathVariable Long projectId,
+            @RequestParam(defaultValue = "30") Integer days) {
+        return ResponseEntity.ok(service.history(projectId, days));
+    }
+
     @GetMapping("/project/{projectId}/cumulative-flow")
     @PreAuthorize("hasAuthority('ticket.view') or hasRole('ADMIN')")
     public ResponseEntity<List<CumulativeFlowPointResponse>> cumulativeFlow(@PathVariable Long projectId,

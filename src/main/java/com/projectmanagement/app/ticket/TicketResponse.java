@@ -2,9 +2,8 @@ package com.projectmanagement.app.ticket;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Set;
 import java.util.Map;
-import com.projectmanagement.app.securityscheme.IssueSecurityLevel;
+import java.util.Set;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -76,8 +75,6 @@ public class TicketResponse {
     private Set<Long> labelIds;
 
     private Map<String, String> customFields;
-
-    private IssueSecurityLevel securityLevel;
 
     private LocalDateTime deletedAt;
 

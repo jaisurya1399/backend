@@ -1,3 +1,4 @@
+
 package com.projectmanagement.app.ticket;
 
 import jakarta.validation.constraints.NotBlank;
@@ -26,4 +27,7 @@ public class TicketPriorityRequest {
 
     @Builder.Default
     private Boolean isDefault = false;
+
+    @Builder.Default
+    private Integer displayOrder = 0;
 }

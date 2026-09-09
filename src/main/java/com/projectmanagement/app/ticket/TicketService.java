@@ -38,9 +38,6 @@ import com.projectmanagement.app.sprint.SprintRepository;
 import com.projectmanagement.app.sprint.SprintStatus;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
-import com.projectmanagement.app.workflow.WorkflowService;
-import com.projectmanagement.app.securityscheme.IssueSecurityLevel;
-import com.projectmanagement.app.securityscheme.IssueSecuritySchemeRepository;
 
 @Service
 @Transactional
@@ -64,8 +61,6 @@ public class TicketService {
         private final RealtimeEventService realtimeEvents;
         private final BoardService boardService;
         private final CustomFieldValueService customFieldValueService;
-        private final WorkflowService workflowService;
-        private final IssueSecuritySchemeRepository issueSecuritySchemes;
 
         public TicketService(
                         TicketRepository ticketRepository,
@@ -85,9 +80,7 @@ public class TicketService {
                         AuditService auditService,
                         RealtimeEventService realtimeEvents,
                         BoardService boardService,
-                        CustomFieldValueService customFieldValueService,
-                        WorkflowService workflowService,
-                        IssueSecuritySchemeRepository issueSecuritySchemes) {
+                        CustomFieldValueService customFieldValueService) {
 
                 this.ticketRepository = ticketRepository;
                 this.projectRepository = projectRepository;
@@ -107,8 +100,6 @@ public class TicketService {
                 this.realtimeEvents = realtimeEvents;
                 this.boardService = boardService;
                 this.customFieldValueService = customFieldValueService;
-                this.workflowService = workflowService;
-                this.issueSecuritySchemes = issueSecuritySchemes;
         }
 
         // ============================================================
@@ -492,7 +483,6 @@ public class TicketService {
                                                 "Project not found with id: "
                                                                 + request.getProjectId()));
                 projectAccessService.requireEditor(project);
-                if (request.getSecurityLevel() != null && !projectAccessService.canManage(project)) throw new RuntimeException("Only project admins can set issue security");
                 validateProjectActive(project);
 
                 User owner = userRepository
@@ -597,7 +587,6 @@ public class TicketService {
                                 .sprint(sprint)
                                 .milestone(milestone)
                                 .labels(labels)
-                                .securityLevel(request.getSecurityLevel() != null ? request.getSecurityLevel() : issueSecuritySchemes.findByProjectId(project.getId()).map(x -> x.getDefaultLevel()).orElse(IssueSecurityLevel.PROJECT))
                                 .build();
 
                 Ticket saved = ticketRepository.save(ticket);
@@ -622,7 +611,6 @@ public class TicketService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
                 projectAccessService.requireEditor(ticket.getProject());
-                if (request.getSecurityLevel() != null && !projectAccessService.canManage(ticket.getProject())) throw new RuntimeException("Only project admins can change issue security");
 
                 Project project = projectRepository
                                 .findById(request.getProjectId())
@@ -740,10 +728,10 @@ public class TicketService {
                 ticket.setSprint(sprint);
                 ticket.setMilestone(milestone);
                 ticket.setLabels(labels);
-                if (request.getSecurityLevel() != null) ticket.setSecurityLevel(request.getSecurityLevel());
 
                 Ticket updated = ticketRepository.save(ticket);
-                customFieldValueService.replaceValues(updated, request.getCustomFields(), project.getId(), type.getId());
+                customFieldValueService.replaceValues(updated, request.getCustomFields(), project.getId(),
+                                type.getId());
                 if (responsible != null && (previousResponsible == null
                                 || !previousResponsible.getId().equals(responsible.getId()))) {
                         ticketNotificationService.notifyAssignment(updated, currentUserService.getCurrentUser());
@@ -764,11 +752,9 @@ public class TicketService {
                                                 "Ticket status not found with id: " + request.getStatusId()));
                 validateStatusBelongsToProject(status, ticket.getProject());
                 TicketStatus oldStatus = ticket.getStatus();
-                workflowService.validateTransition(ticket, oldStatus, status);
                 boardService.enforceWip(ticket, status);
                 applyStatusChange(ticket, oldStatus, status);
                 ticket.setStatus(status);
-                workflowService.applyTransitionPostFunctions(ticket, oldStatus, status);
                 Ticket updated = ticketRepository.save(ticket);
                 boardService.recordTransition(updated, oldStatus, status);
                 Map<String, Object> transition = new LinkedHashMap<>();
@@ -927,14 +913,7 @@ public class TicketService {
         }
 
         private boolean canView(Ticket ticket) {
-                if (!projectAccessService.canView(ticket.getProject())) return false;
-                IssueSecurityLevel level = ticket.getSecurityLevel() == null ? IssueSecurityLevel.PROJECT : ticket.getSecurityLevel();
-                if (level == IssueSecurityLevel.PROJECT || level == IssueSecurityLevel.MEMBERS) return true;
-                Long uid = currentUserService.getCurrentUserId();
-                if (uid == null) return false;
-                if (level == IssueSecurityLevel.ASSIGNEE) return ticket.getResponsible() != null && uid.equals(ticket.getResponsible().getId());
-                if (level == IssueSecurityLevel.REPORTER) return ticket.getOwner() != null && uid.equals(ticket.getOwner().getId());
-                return false;
+                return projectAccessService.canView(ticket.getProject());
         }
 
         private String generateTicketCode(
@@ -1235,7 +1214,6 @@ public class TicketService {
                                 .releaseId(releaseId)
                                 .releaseVersion(releaseVersion)
                                 .labelIds(labelIds)
-                                .securityLevel(ticket.getSecurityLevel())
                                 .customFields(customFieldValueService.getValues(ticket.getId()))
 
                                 .deletedAt(ticket.getDeletedAt())

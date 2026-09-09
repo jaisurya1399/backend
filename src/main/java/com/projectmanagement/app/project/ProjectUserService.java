@@ -5,9 +5,9 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.projectmanagement.app.audit.AuditService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
+import com.projectmanagement.app.audit.AuditService;
 
 @Service
 @Transactional
@@ -151,8 +151,7 @@ public class ProjectUserService {
                 ProjectUser saved = projectUserRepository.save(projectUser);
                 auditService.record(project, null, "PROJECT_MEMBER_ADDED", "PROJECT_USER", saved.getId(),
                                 java.util.Map.of("userId", user.getId(), "role", saved.getRole(),
-                                                "responsibilityRole", saved.getResponsibilityRole() == null ? ""
-                                                                : saved.getResponsibilityRole()));
+                                                "responsibilityRole", saved.getResponsibilityRole() == null ? "" : saved.getResponsibilityRole()));
                 return toResponse(saved);
         }
 
@@ -223,8 +222,7 @@ public class ProjectUserService {
                 ProjectUser saved = projectUserRepository.save(projectUser);
                 auditService.record(newProject, null, "PROJECT_MEMBER_UPDATED", "PROJECT_USER", saved.getId(),
                                 java.util.Map.of("userId", saved.getUser().getId(), "role", saved.getRole(),
-                                                "responsibilityRole", saved.getResponsibilityRole() == null ? ""
-                                                                : saved.getResponsibilityRole()));
+                                                "responsibilityRole", saved.getResponsibilityRole() == null ? "" : saved.getResponsibilityRole()));
                 return toResponse(saved);
         }
 
@@ -306,10 +304,8 @@ public class ProjectUserService {
                 projectAccessService.requireManager(
                                 projectUser.getProject());
 
-                auditService.record(projectUser.getProject(), null, "PROJECT_MEMBER_REMOVED", "PROJECT_USER",
-                                projectUser.getId(),
-                                java.util.Map.of("userId", projectUser.getUser().getId(), "role",
-                                                projectUser.getRole()));
+                auditService.record(projectUser.getProject(), null, "PROJECT_MEMBER_REMOVED", "PROJECT_USER", projectUser.getId(),
+                                java.util.Map.of("userId", projectUser.getUser().getId(), "role", projectUser.getRole()));
                 projectUserRepository.delete(projectUser);
         }
 

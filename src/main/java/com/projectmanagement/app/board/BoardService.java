@@ -110,6 +110,14 @@ public class BoardService {
         return getColumns(projectId);
     }
 
+    public List<BoardStatusHistory> history(Long projectId, int days) {
+        Project p = project(projectId);
+        access.requireView(p);
+        LocalDateTime to = LocalDateTime.now();
+        LocalDateTime from = to.minusDays(Math.max(1, Math.min(days, 365)));
+        return historyRepo.findByProjectIdAndChangedAtBetweenOrderByChangedAtAsc(projectId, from, to);
+    }
+
     public void recordTransition(Ticket ticket, TicketStatus from, TicketStatus to) {
         if (ticket == null || ticket.getProject() == null || to == null)
             return;

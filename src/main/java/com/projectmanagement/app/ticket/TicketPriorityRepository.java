@@ -10,6 +10,8 @@ import org.springframework.stereotype.Repository;
 public interface TicketPriorityRepository
         extends JpaRepository<TicketPriority, Long> {
 
+    List<TicketPriority> findByDeletedAtIsNullOrderByDisplayOrderAscIdAsc();
+
     List<TicketPriority> findByDeletedAtIsNull();
 
     List<TicketPriority> findByIsDefaultTrue();

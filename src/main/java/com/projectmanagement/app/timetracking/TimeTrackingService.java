@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.auth.CurrentUserService;
+import com.projectmanagement.app.project.ProjectAccessService;
 import com.projectmanagement.app.ticket.Ticket;
 import com.projectmanagement.app.ticket.TicketHour;
 import com.projectmanagement.app.ticket.TicketHourRepository;
@@ -30,10 +31,12 @@ public class TimeTrackingService {
     private final TicketHourRepository ticketHourRepository;
     private final TimeTrackingTimerRepository timerRepository;
     private final CurrentUserService currentUserService;
+    private final ProjectAccessService projectAccessService;
 
     @Transactional(readOnly = true)
     public TimeTrackingSummaryResponse summary(Long ticketId) {
         Ticket ticket = getTicket(ticketId);
+        projectAccessService.requireView(ticket.getProject());
         BigDecimal actual = actual(ticketId);
         BigDecimal estimate = nz(ticket.getEstimation());
         BigDecimal remaining = estimate.subtract(actual).max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
@@ -45,6 +48,7 @@ public class TimeTrackingService {
 
     public TimeTrackingTimerResponse start(Long ticketId, String description) {
         Ticket ticket = getTicket(ticketId);
+        projectAccessService.requireEditor(ticket.getProject());
         User user = currentUserService.getCurrentUser();
         timerRepository.findByUserId(user.getId()).ifPresent(t -> {
             throw new IllegalStateException("You already have an active timer");
@@ -76,6 +80,8 @@ public class TimeTrackingService {
         LocalDateTime start = from != null ? from.atStartOfDay() : LocalDateTime.of(1970, 1, 1, 0, 0);
         LocalDateTime end = to != null ? to.plusDays(1).atStartOfDay().minusNanos(1) : LocalDateTime.now();
         List<TicketHour> hours = ticketHourRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end);
+        if (projectId != null)
+            projectAccessService.requireView(getTicketProject(projectId));
         return hours.stream()
                 .filter(h -> projectId == null || h.getTicket().getProject().getId().equals(projectId))
                 .filter(h -> userId == null || h.getUser().getId().equals(userId))
@@ -101,6 +107,12 @@ public class TimeTrackingService {
     private BigDecimal actual(Long ticketId) {
         return ticketHourRepository.findByTicketId(ticketId).stream().map(TicketHour::getValue)
                 .filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private com.projectmanagement.app.project.Project getTicketProject(Long projectId) {
+        return ticketRepository.findByProjectIdAndDeletedAtIsNullOrderByOrderAsc(projectId).stream().findFirst()
+                .map(Ticket::getProject)
+                .orElseThrow(() -> new RuntimeException("Project not found or has no active tickets"));
     }
 
     private Ticket getTicket(Long id) {

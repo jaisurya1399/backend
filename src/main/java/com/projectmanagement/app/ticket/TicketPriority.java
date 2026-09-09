@@ -36,6 +36,10 @@ public class TicketPriority {
     @Builder.Default
     private String color = "#cecece";
 
+    @Column(name = "display_order", nullable = false)
+    @Builder.Default
+    private Integer displayOrder = 0;
+
     @Column(name = "is_default", nullable = false)
     @Builder.Default
     private Boolean isDefault = false;
@@ -64,6 +68,10 @@ public class TicketPriority {
 
         if (color == null || color.isBlank()) {
             color = "#cecece";
+        }
+
+        if (displayOrder == null) {
+            displayOrder = 0;
         }
 
         if (isDefault == null) {

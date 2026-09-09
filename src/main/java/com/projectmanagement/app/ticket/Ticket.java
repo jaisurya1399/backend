@@ -10,11 +10,14 @@ import com.projectmanagement.app.label.Label;
 import com.projectmanagement.app.milestone.Milestone;
 import com.projectmanagement.app.project.Project;
 import com.projectmanagement.app.release.ReleaseVersion;
+import com.projectmanagement.app.securityscheme.IssueSecurityLevel;
 import com.projectmanagement.app.sprint.Sprint;
 import com.projectmanagement.app.user.User;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.ForeignKey;
 import jakarta.persistence.GeneratedValue;
@@ -42,15 +45,30 @@ import lombok.Setter;
 @Builder
 public class Ticket {
 
+    // =========================================================
+    // PRIMARY KEY
+    // =========================================================
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    // =========================================================
+    // BASIC INFORMATION
+    // =========================================================
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;
 
     @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
+
+    @Column(name = "code", nullable = false, length = 255)
+    private String code;
+
+    // =========================================================
+    // USERS
+    // =========================================================
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "owner_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_owner_id_foreign"))
@@ -60,44 +78,54 @@ public class Ticket {
     @JoinColumn(name = "responsible_id", foreignKey = @ForeignKey(name = "tickets_responsible_id_foreign"))
     private User responsible;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "status_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_status_id_foreign"))
-    private TicketStatus status;
-
-    @Column(name = "resolved_at")
-    private LocalDateTime resolvedAt;
+    // =========================================================
+    // PROJECT
+    // =========================================================
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_project_id_foreign"))
     private Project project;
 
-    @Column(name = "deleted_at")
-    private LocalDateTime deletedAt;
-
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
-
-    @Column(name = "code", nullable = false, length = 255)
-    private String code;
+    // =========================================================
+    // TYPE / STATUS / PRIORITY
+    // =========================================================
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "type_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_type_id_foreign"))
     private TicketType type;
 
-    @Column(name = "\"order\"", nullable = false)
-    @Builder.Default
-    private Integer order = 0;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "status_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_status_id_foreign"))
+    private TicketStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "priority_id", nullable = false, foreignKey = @ForeignKey(name = "tickets_priority_id_foreign"))
     private TicketPriority priority;
 
+    // =========================================================
+    // SECURITY
+    // =========================================================
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "security_level", nullable = false, length = 30)
+    @Builder.Default
+    private IssueSecurityLevel securityLevel = IssueSecurityLevel.PROJECT;
+
+    // =========================================================
+    // ORDER / ESTIMATION
+    // =========================================================
+
+    @Column(name = "\"order\"", nullable = false)
+    @Builder.Default
+    private Integer order = 0;
+
     @Column(name = "estimation", nullable = false, precision = 8, scale = 2)
     @Builder.Default
     private BigDecimal estimation = BigDecimal.ZERO;
+
+    // =========================================================
+    // EPIC / PARENT
+    // =========================================================
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "epic_id", foreignKey = @ForeignKey(name = "tickets_epic_id_foreign"))
@@ -114,6 +142,10 @@ public class Ticket {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sprint_id", foreignKey = @ForeignKey(name = "tickets_sprint_id_foreign"))
     private Sprint sprint;
+
+    // =========================================================
+    // RELEASE
+    // =========================================================
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "release_id", foreignKey = @ForeignKey(name = "tickets_release_id_foreign"))
@@ -135,6 +167,22 @@ public class Ticket {
     @JoinTable(name = "ticket_labels", joinColumns = @JoinColumn(name = "ticket_id", foreignKey = @ForeignKey(name = "ticket_labels_ticket_id_foreign")), inverseJoinColumns = @JoinColumn(name = "label_id", foreignKey = @ForeignKey(name = "ticket_labels_label_id_foreign")))
     @Builder.Default
     private Set<Label> labels = new HashSet<>();
+
+    // =========================================================
+    // TIMESTAMPS
+    // =========================================================
+
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
     // =========================================================
     // CREATE
@@ -161,6 +209,10 @@ public class Ticket {
             estimation = BigDecimal.ZERO;
         }
 
+        if (securityLevel == null) {
+            securityLevel = IssueSecurityLevel.PROJECT;
+        }
+
         if (labels == null) {
             labels = new HashSet<>();
         }
@@ -172,7 +224,6 @@ public class Ticket {
 
     @PreUpdate
     protected void onUpdate() {
-
         updatedAt = LocalDateTime.now();
     }
 }

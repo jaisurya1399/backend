@@ -23,6 +23,8 @@ public class TicketPriorityResponse {
 
     private Boolean isDefault;
 
+    private Integer displayOrder;
+
     private LocalDateTime deletedAt;
 
     private LocalDateTime createdAt;
