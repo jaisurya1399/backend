@@ -8,6 +8,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projectmanagement.app.audit.AuditService;
 import com.projectmanagement.app.auth.CurrentUserService;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
@@ -20,19 +21,25 @@ public class ProjectService {
         private final ProjectStatusRepository projectStatusRepository;
         private final CurrentUserService currentUserService;
         private final ProjectAccessService projectAccessService;
+        private final ProjectUserRepository projectUserRepository;
+        private final AuditService auditService;
 
         public ProjectService(
                         ProjectRepository projectRepository,
                         UserRepository userRepository,
                         ProjectStatusRepository projectStatusRepository,
                         CurrentUserService currentUserService,
-                        ProjectAccessService projectAccessService) {
+                        ProjectAccessService projectAccessService,
+                        ProjectUserRepository projectUserRepository,
+                        AuditService auditService) {
 
                 this.projectRepository = projectRepository;
                 this.userRepository = userRepository;
                 this.projectStatusRepository = projectStatusRepository;
                 this.currentUserService = currentUserService;
                 this.projectAccessService = projectAccessService;
+                this.projectUserRepository = projectUserRepository;
+                this.auditService = auditService;
         }
 
         // ============================================================
@@ -69,7 +76,7 @@ public class ProjectService {
                 Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
                 if (isAdmin(authentication)) {
-                        return projectRepository.findByDeletedAtIsNull()
+                        return projectRepository.findByArchivedAtIsNullAndDeletedAtIsNull()
                                         .stream()
                                         .map(this::toResponse)
                                         .toList();
@@ -124,7 +131,7 @@ public class ProjectService {
 
                 validateUserId(ownerId);
 
-                return projectRepository.findByOwnerIdAndDeletedAtIsNull(ownerId)
+                return projectRepository.findByOwnerIdAndArchivedAtIsNullAndDeletedAtIsNull(ownerId)
                                 .stream()
                                 .filter(this::canViewProject)
                                 .map(this::toResponse)
@@ -156,7 +163,7 @@ public class ProjectService {
 
                 validateStatusId(statusId);
 
-                return projectRepository.findByStatusIdAndDeletedAtIsNull(statusId)
+                return projectRepository.findByStatusIdAndArchivedAtIsNullAndDeletedAtIsNull(statusId)
                                 .stream()
                                 .filter(this::canViewProject)
                                 .map(this::toResponse)
@@ -223,6 +230,19 @@ public class ProjectService {
 
                 Project savedProject = projectRepository.save(project);
 
+                // The creator/owner is the project administrator for the new project.
+                if (!projectUserRepository.existsByProjectIdAndUserId(savedProject.getId(), owner.getId())) {
+                        projectUserRepository.save(ProjectUser.builder()
+                                        .project(savedProject)
+                                        .user(owner)
+                                        .role(ProjectRole.PROJECT_ADMIN.name())
+                                        .build());
+                }
+
+                auditService.record(savedProject, null, "PROJECT_CREATED", "PROJECT", savedProject.getId(),
+                                java.util.Map.of("name", savedProject.getName(), "ticketPrefix",
+                                                savedProject.getTicketPrefix()));
+
                 return toResponse(savedProject);
         }
 
@@ -241,6 +261,19 @@ public class ProjectService {
                 Project project = getProjectEntityById(id);
 
                 projectAccessService.requireManager(project);
+
+                if (project.getArchivedAt() != null
+                                && !isAdmin(SecurityContextHolder.getContext().getAuthentication())) {
+                        throw new RuntimeException("Unarchive the project before changing project settings");
+                }
+
+                if (!isAdmin(SecurityContextHolder.getContext().getAuthentication())
+                                && !project.getOwner().getId().equals(currentUserService.getCurrentUserId())
+                                && request.getOwnerId() != null
+                                && !project.getOwner().getId().equals(request.getOwnerId())) {
+                        throw new RuntimeException(
+                                        "Only the system ADMIN or project owner can change project ownership");
+                }
 
                 String normalizedName = request.getName().trim();
                 String normalizedPrefix = request.getTicketPrefix().trim();
@@ -282,6 +315,11 @@ public class ProjectService {
 
                 Project updatedProject = projectRepository.save(project);
 
+                auditService.record(updatedProject, null, "PROJECT_UPDATED", "PROJECT", updatedProject.getId(),
+                                java.util.Map.of("name", updatedProject.getName(), "ticketPrefix",
+                                                updatedProject.getTicketPrefix(),
+                                                "statusId", updatedProject.getStatus().getId()));
+
                 return toResponse(updatedProject);
         }
 
@@ -298,9 +336,14 @@ public class ProjectService {
 
                 projectAccessService.requireManager(project);
 
+                if (project.getArchivedAt() != null) {
+                        throw new RuntimeException("Unarchive the project before deleting it");
+                }
+
                 project.setDeletedAt(LocalDateTime.now());
 
                 projectRepository.save(project);
+                auditService.record(project, null, "PROJECT_DELETED", "PROJECT", project.getId(), java.util.Map.of());
         }
 
         // ============================================================
@@ -319,6 +362,7 @@ public class ProjectService {
                 project.setDeletedAt(null);
 
                 projectRepository.save(project);
+                auditService.record(project, null, "PROJECT_RESTORED", "PROJECT", project.getId(), java.util.Map.of());
         }
 
         // ============================================================
@@ -369,7 +413,6 @@ public class ProjectService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "User not found with id: " + userId));
         }
-
 
         // ============================================================
         // GET PROJECT STATUS
@@ -431,6 +474,7 @@ public class ProjectService {
                                 .statusType(project.getStatusType())
 
                                 .deletedAt(project.getDeletedAt())
+                                .archivedAt(project.getArchivedAt())
                                 .createdAt(project.getCreatedAt())
                                 .updatedAt(project.getUpdatedAt())
 
@@ -493,7 +537,6 @@ public class ProjectService {
                                         "Status ID must be greater than zero");
                 }
         }
-
 
         // ============================================================
         // VALIDATE PROJECT NAME

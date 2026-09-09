@@ -57,6 +57,9 @@ public class Project {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "archived_at")
+    private LocalDateTime archivedAt;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

@@ -42,6 +42,9 @@ public class ProjectAccessService {
 
     public void requireEditor(Project project) {
         requireMinimumRole(project, ProjectRole.MEMBER);
+        if (!isSystemAdmin() && project.getArchivedAt() != null) {
+            throw new RuntimeException("Archived projects are read-only until unarchived");
+        }
     }
 
     public void requireManager(Project project) {
@@ -78,6 +81,8 @@ public class ProjectAccessService {
     }
 
     public boolean canEdit(Project project) {
+        if (project == null || project.getArchivedAt() != null)
+            return isSystemAdmin();
         ProjectRole role = getCurrentProjectRole(project);
         return role == ProjectRole.PROJECT_ADMIN || role == ProjectRole.MEMBER;
     }

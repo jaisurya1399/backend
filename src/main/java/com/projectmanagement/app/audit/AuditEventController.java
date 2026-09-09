@@ -27,7 +27,7 @@ public class AuditEventController {
     }
 
     @GetMapping("/projects/{projectId}/audit-events")
-    @PreAuthorize("hasAuthority('project.view') or hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<AuditEventResponse>> byProject(@PathVariable Long projectId) {
         return ResponseEntity.ok(service.byProject(
                 projectRepository.findById(projectId).orElseThrow(() -> new RuntimeException("Project not found"))));

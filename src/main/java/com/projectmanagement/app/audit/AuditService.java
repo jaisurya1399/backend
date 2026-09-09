@@ -37,7 +37,7 @@ public class AuditService {
 
     @Transactional(readOnly = true)
     public List<AuditEventResponse> byProject(Project project) {
-        access.requireView(project);
+        access.requireManager(project);
         return repository.findByProjectIdOrderByCreatedAtDesc(project.getId()).stream().map(this::response).toList();
     }
 
