@@ -2,6 +2,8 @@ package com.projectmanagement.app.ticket;
 
 import java.math.BigDecimal;
 import java.util.Set;
+import java.util.Map;
+import com.projectmanagement.app.securityscheme.IssueSecurityLevel;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -75,4 +77,9 @@ public class TicketRequest {
     private Long milestoneId;
 
     private Set<@NotNull(message = "Label IDs cannot contain null") @Positive(message = "Label IDs must be positive") Long> labelIds;
+
+    /** Dynamic values defined by the project/issue-type field configuration. */
+    private Map<String, String> customFields;
+
+    private IssueSecurityLevel securityLevel;
 }
