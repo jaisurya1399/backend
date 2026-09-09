@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Set;
 
+import com.projectmanagement.app.securityscheme.IssueSecurityLevel;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -79,4 +81,6 @@ public class TicketRequest {
 
     /** Dynamic values defined by the project/issue-type field configuration. */
     private Map<String, String> customFields;
+
+    private IssueSecurityLevel securityLevel;
 }

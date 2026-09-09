@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 
+import com.projectmanagement.app.securityscheme.IssueSecurityLevel;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -75,6 +77,8 @@ public class TicketResponse {
     private Set<Long> labelIds;
 
     private Map<String, String> customFields;
+
+    private IssueSecurityLevel securityLevel;
 
     private LocalDateTime deletedAt;
 
