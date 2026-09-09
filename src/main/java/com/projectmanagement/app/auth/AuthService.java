@@ -20,6 +20,9 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import com.projectmanagement.app.project.ProjectMembershipResponse;
+import com.projectmanagement.app.project.ProjectUser;
+import com.projectmanagement.app.project.ProjectUserRepository;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
 import com.projectmanagement.app.userrole.UserRoleRepository;
@@ -40,6 +43,7 @@ public class AuthService {
     private final EmailVerificationDeliveryService emailVerificationDeliveryService;
     private final LoginRateLimitService loginRateLimitService;
     private final UserRoleRepository userRoleRepository;
+    private final ProjectUserRepository projectUserRepository;
     private final TotpService totpService;
 
     @Value("${auth.refresh-expiration-days:30}")
@@ -59,7 +63,7 @@ public class AuthService {
             EmailVerificationTokenRepository emailVerificationTokenRepository,
             EmailVerificationDeliveryService emailVerificationDeliveryService,
             LoginRateLimitService loginRateLimitService, UserRoleRepository userRoleRepository,
-            TotpService totpService) {
+            ProjectUserRepository projectUserRepository, TotpService totpService) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -72,6 +76,7 @@ public class AuthService {
         this.emailVerificationDeliveryService = emailVerificationDeliveryService;
         this.loginRateLimitService = loginRateLimitService;
         this.userRoleRepository = userRoleRepository;
+        this.projectUserRepository = projectUserRepository;
         this.totpService = totpService;
     }
 
@@ -259,7 +264,8 @@ public class AuthService {
         String refreshToken = createRefreshToken(user, ip, userAgent);
         return AuthResponse.builder().accessToken(token).refreshToken(refreshToken).tokenType("Bearer")
                 .userId(user.getId()).name(user.getName()).email(user.getEmail())
-                .role(getRole(user.getId())).permissions(getPermissions(user.getId())).mfaRequired(false).build();
+                .role(getRole(user.getId())).permissions(getPermissions(user.getId()))
+                .projectMemberships(getProjectMemberships(user.getId())).mfaRequired(false).build();
     }
 
     private String getRole(Long userId) {
@@ -274,6 +280,19 @@ public class AuthService {
                 .filter(rp -> rp != null && rp.getPermission() != null && rp.getPermission().getName() != null)
                 .map(rp -> rp.getPermission().getName().trim()).filter(s -> !s.isBlank()).distinct().sorted()
                 .collect(Collectors.toList());
+    }
+
+    private List<ProjectMembershipResponse> getProjectMemberships(Long userId) {
+        return projectUserRepository.findByUserId(userId).stream().map(this::toMembership).toList();
+    }
+
+    private ProjectMembershipResponse toMembership(ProjectUser membership) {
+        return ProjectMembershipResponse.builder()
+                .projectId(membership.getProject() != null ? membership.getProject().getId() : null)
+                .projectName(membership.getProject() != null ? membership.getProject().getName() : null)
+                .role(membership.getRole())
+                .responsibilityRole(membership.getResponsibilityRole())
+                .build();
     }
 
     private String createRefreshToken(User user, String ip, String userAgent) {
@@ -315,6 +334,7 @@ public class AuthService {
         User user = getUser(email);
         return AuthMeResponse.builder().userId(user.getId()).name(user.getName()).email(user.getEmail())
                 .role(getRole(user.getId())).permissions(getPermissions(user.getId()))
+                .projectMemberships(getProjectMemberships(user.getId()))
                 .mfaEnabled(isMfaEnabled(user.getEmail())).build();
     }
 

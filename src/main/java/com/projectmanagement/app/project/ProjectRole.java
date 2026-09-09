@@ -1,3 +1,7 @@
 package com.projectmanagement.app.project;
 
-public enum ProjectRole { ADMIN, MEMBER, VIEWER }
+public enum ProjectRole {
+    PROJECT_ADMIN,
+    MEMBER,
+    VIEWER
+}

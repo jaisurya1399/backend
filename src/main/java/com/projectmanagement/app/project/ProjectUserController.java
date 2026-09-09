@@ -58,7 +58,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @GetMapping("/project/{projectId}")
-        @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<List<ProjectUserResponse>> getProjectUsersByProject(
                         @PathVariable Long projectId) {
 
@@ -84,7 +84,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @GetMapping("/project/{projectId}/role/{role}")
-        @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<List<ProjectUserResponse>> getProjectUsersByProjectAndRole(
                         @PathVariable Long projectId,
                         @PathVariable String role) {
@@ -100,7 +100,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @GetMapping("/check")
-        @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Boolean> checkAssignment(
                         @RequestParam Long projectId,
                         @RequestParam Long userId) {
@@ -116,7 +116,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @PostMapping
-        @PreAuthorize("hasAuthority('project_user.create') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ProjectUserResponse> createProjectUser(
                         @Valid @RequestBody ProjectUserRequest request) {
 
@@ -131,7 +131,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @PutMapping("/{id}")
-        @PreAuthorize("hasAuthority('project_user.update') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<ProjectUserResponse> updateProjectUser(
                         @PathVariable Long id,
                         @Valid @RequestBody ProjectUserRequest request) {
@@ -147,7 +147,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @DeleteMapping("/{id}")
-        @PreAuthorize("hasAuthority('project_user.delete') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> deleteProjectUser(
                         @PathVariable Long id) {
 
@@ -161,7 +161,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @DeleteMapping("/project/{projectId}")
-        @PreAuthorize("hasAuthority('project_user.delete') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> deleteProjectUsersByProject(
                         @PathVariable Long projectId) {
 
@@ -176,7 +176,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @DeleteMapping("/user/{userId}")
-        @PreAuthorize("hasAuthority('project_user.delete') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Void> deleteProjectUsersByUser(
                         @PathVariable Long userId) {
 
@@ -190,7 +190,7 @@ public class ProjectUserController {
         // ---------------------------------------------------------
 
         @GetMapping("/project/{projectId}/count")
-        @PreAuthorize("hasAuthority('project_user.view') or hasRole('ADMIN')")
+        @PreAuthorize("isAuthenticated()")
         public ResponseEntity<Long> countUsersByProject(
                         @PathVariable Long projectId) {
 

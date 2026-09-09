@@ -14,144 +14,114 @@ public class ProjectAccessService {
     private final CurrentUserService currentUserService;
     private final ProjectUserRepository projectUserRepository;
 
-    public ProjectAccessService(
-            CurrentUserService currentUserService,
+    public ProjectAccessService(CurrentUserService currentUserService,
             ProjectUserRepository projectUserRepository) {
-
         this.currentUserService = currentUserService;
         this.projectUserRepository = projectUserRepository;
     }
 
-    /**
-     * Checks whether the current user can view the project.
-     *
-     * System administrators can access all projects.
-     * Other users must either own the project or be explicitly
-     * assigned to the project.
-     */
     public boolean canView(Project project) {
-        if (project == null) {
+        if (project == null)
             return false;
-        }
-
-        if (isSystemAdmin()) {
+        if (isSystemAdmin())
             return true;
-        }
-
-        if (project.getOwner() == null || project.getOwner().getId() == null) {
-            return false;
-        }
 
         Long userId = currentUserService.getCurrentUserId();
-
-        if (userId == null) {
+        if (userId == null)
             return false;
-        }
 
-        boolean isOwner = project.getOwner().getId().equals(userId);
-
-        boolean isProjectMember = projectUserRepository.existsByProjectIdAndUserId(
-                project.getId(),
-                userId);
-
-        return isOwner || isProjectMember;
+        if (project.getOwner() != null && userId.equals(project.getOwner().getId()))
+            return true;
+        return projectUserRepository.existsByProjectIdAndUserId(project.getId(), userId);
     }
 
-    /**
-     * Requires the current user to have view access to the project.
-     */
     public void requireView(Project project) {
-        if (!canView(project)) {
-            throw new RuntimeException(
-                    "You do not have access to this project");
-        }
+        if (!canView(project))
+            throw new RuntimeException("You do not have access to this project");
     }
 
-    /**
-     * Requires project MEMBER or ADMIN access.
-     *
-     * Project owner is always allowed.
-     */
     public void requireEditor(Project project) {
-        requireRole(project, ProjectRole.MEMBER);
+        requireMinimumRole(project, ProjectRole.MEMBER);
     }
 
-    /**
-     * Requires project ADMIN access.
-     *
-     * Project owner is always allowed.
-     */
     public void requireManager(Project project) {
-        requireRole(project, ProjectRole.ADMIN);
+        requireMinimumRole(project, ProjectRole.PROJECT_ADMIN);
     }
 
-    private void requireRole(
-            Project project,
-            ProjectRole minimumRole) {
-
-        if (project == null) {
-            throw new RuntimeException("Project is required");
-        }
-
-        if (isSystemAdmin()) {
-            return;
-        }
+    public ProjectRole getCurrentProjectRole(Project project) {
+        if (project == null)
+            return null;
+        if (isSystemAdmin())
+            return ProjectRole.PROJECT_ADMIN;
 
         Long userId = currentUserService.getCurrentUserId();
+        if (userId == null)
+            return null;
+        if (project.getOwner() != null && userId.equals(project.getOwner().getId()))
+            return ProjectRole.PROJECT_ADMIN;
 
-        if (userId == null) {
-            throw new RuntimeException("Authenticated user is required");
-        }
-
-        requireView(project);
-
-        if (project.getOwner() != null
-                && project.getOwner().getId() != null
-                && project.getOwner().getId().equals(userId)) {
-            return;
-        }
-
-        ProjectRole role = projectUserRepository
-                .findByProjectIdAndUserId(project.getId(), userId)
-                .map(member -> {
-                    try {
-                        return ProjectRole.valueOf(member.getRole());
-                    } catch (IllegalArgumentException | NullPointerException ex) {
-                        return null;
-                    }
-                })
+        return projectUserRepository.findByProjectIdAndUserId(project.getId(), userId)
+                .map(member -> parseRole(member.getRole()))
                 .orElse(null);
+    }
 
-        boolean allowed;
+    public String getCurrentMemberResponsibility(Project project) {
+        if (project == null || isSystemAdmin())
+            return null;
+        Long userId = currentUserService.getCurrentUserId();
+        if (userId == null)
+            return null;
+        return projectUserRepository.findByProjectIdAndUserId(project.getId(), userId)
+                .filter(member -> ProjectRole.MEMBER.name().equalsIgnoreCase(member.getRole()))
+                .map(ProjectUser::getResponsibilityRole)
+                .orElse(null);
+    }
 
-        if (minimumRole == ProjectRole.MEMBER) {
-            allowed = role == ProjectRole.ADMIN
-                    || role == ProjectRole.MEMBER;
-        } else {
-            allowed = role == ProjectRole.ADMIN;
-        }
+    public boolean canEdit(Project project) {
+        ProjectRole role = getCurrentProjectRole(project);
+        return role == ProjectRole.PROJECT_ADMIN || role == ProjectRole.MEMBER;
+    }
+
+    public boolean canManage(Project project) {
+        return getCurrentProjectRole(project) == ProjectRole.PROJECT_ADMIN;
+    }
+
+    public void requireMinimumRole(Project project, ProjectRole minimumRole) {
+        if (project == null)
+            throw new RuntimeException("Project is required");
+        if (isSystemAdmin())
+            return;
+
+        ProjectRole role = getCurrentProjectRole(project);
+        boolean allowed = minimumRole == ProjectRole.MEMBER
+                ? role == ProjectRole.MEMBER || role == ProjectRole.PROJECT_ADMIN
+                : role == ProjectRole.PROJECT_ADMIN;
 
         if (!allowed) {
-            if (minimumRole == ProjectRole.ADMIN) {
-                throw new RuntimeException(
-                        "Project admin access is required");
-            }
-
-            throw new RuntimeException(
-                    "Project edit access is required");
+            throw new RuntimeException(minimumRole == ProjectRole.PROJECT_ADMIN
+                    ? "Project admin access is required"
+                    : "Project edit access is required");
         }
     }
 
-    /**
-     * Checks whether the authenticated user has global administrator access.
-     */
+    private ProjectRole parseRole(String value) {
+        if (value == null)
+            return null;
+        try {
+            return ProjectRole.valueOf(value.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            // Backward compatibility for data created before V49.
+            if ("ADMIN".equalsIgnoreCase(value) || "OWNER".equalsIgnoreCase(value))
+                return ProjectRole.PROJECT_ADMIN;
+            if ("VIEWER".equalsIgnoreCase(value))
+                return ProjectRole.VIEWER;
+            return ProjectRole.MEMBER;
+        }
+    }
+
     private boolean isSystemAdmin() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        return authentication != null
-                && authentication.getAuthorities()
-                        .stream()
-                        .anyMatch(authority -> "ROLE_ADMIN".equals(
-                                authority.getAuthority()));
+        return authentication != null && authentication.getAuthorities().stream()
+                .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
     }
 }

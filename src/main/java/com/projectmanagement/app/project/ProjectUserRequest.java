@@ -25,4 +25,7 @@ public class ProjectUserRequest {
 
     @NotNull
     private ProjectRole role;
+
+    /** Required only when role == MEMBER. */
+    private MemberResponsibility responsibilityRole;
 }

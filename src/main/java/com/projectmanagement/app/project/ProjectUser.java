@@ -26,7 +26,9 @@ import lombok.Setter;
 @Entity
 @Table(name = "project_users", indexes = {
         @Index(name = "idx_project_users_user_id", columnList = "user_id"),
-        @Index(name = "idx_project_users_project_id", columnList = "project_id")
+        @Index(name = "idx_project_users_project_id", columnList = "project_id"),
+        @Index(name = "idx_project_users_role", columnList = "role"),
+        @Index(name = "idx_project_users_responsibility", columnList = "responsibility_role")
 })
 @Getter
 @Setter
@@ -47,8 +49,15 @@ public class ProjectUser {
     @JoinColumn(name = "project_id", nullable = false, foreignKey = @ForeignKey(name = "project_users_project_id_foreign"))
     private Project project;
 
-    @Column(name = "role", nullable = false, length = 20)
+    /** Project access level: PROJECT_ADMIN, MEMBER or VIEWER. */
+    @Column(name = "role", nullable = false, length = 30)
     private String role;
+
+    /**
+     * Only meaningful for MEMBER. PROJECT_ADMIN and VIEWER keep this null.
+     */
+    @Column(name = "responsibility_role", length = 40)
+    private String responsibilityRole;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
@@ -59,18 +68,28 @@ public class ProjectUser {
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-
-        if (createdAt == null) {
+        if (createdAt == null)
             createdAt = now;
-        }
-
-        if (updatedAt == null) {
+        if (updatedAt == null)
             updatedAt = now;
-        }
+        normalizeResponsibility();
     }
 
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+        normalizeResponsibility();
+    }
+
+    private void normalizeResponsibility() {
+        if (role == null || !ProjectRole.MEMBER.name().equals(role)) {
+            responsibilityRole = null;
+        } else if (responsibilityRole == null || responsibilityRole.isBlank()) {
+            responsibilityRole = MemberResponsibility.DEVELOPER.name();
+        } else {
+            responsibilityRole = responsibilityRole.trim().toUpperCase();
+        }
+        if (role != null)
+            role = role.trim().toUpperCase();
     }
 }

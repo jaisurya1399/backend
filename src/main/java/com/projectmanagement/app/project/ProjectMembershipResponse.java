@@ -1,7 +1,5 @@
 package com.projectmanagement.app.project;
 
-import java.time.LocalDateTime;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,15 +11,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProjectUserResponse {
-    private Long id;
-    private Long userId;
-    private String userName;
-    private String userEmail;
+public class ProjectMembershipResponse {
     private Long projectId;
     private String projectName;
     private String role;
     private String responsibilityRole;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }
