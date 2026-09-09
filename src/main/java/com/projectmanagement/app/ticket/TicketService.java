@@ -19,8 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.projectmanagement.app.audit.AuditService;
-import com.projectmanagement.app.board.BoardService;
 import com.projectmanagement.app.auth.CurrentUserService;
+import com.projectmanagement.app.board.BoardService;
 import com.projectmanagement.app.epic.Epic;
 import com.projectmanagement.app.epic.EpicRepository;
 import com.projectmanagement.app.label.Label;
@@ -1151,6 +1151,8 @@ public class TicketService {
                 String sprintName = ticket.getSprint() == null ? null : ticket.getSprint().getName();
                 Long milestoneId = ticket.getMilestone() == null ? null : ticket.getMilestone().getId();
                 String milestoneName = ticket.getMilestone() == null ? null : ticket.getMilestone().getName();
+                Long releaseId = ticket.getRelease() == null ? null : ticket.getRelease().getId();
+                String releaseVersion = ticket.getRelease() == null ? null : ticket.getRelease().getVersion();
                 Set<Long> labelIds = ticket.getLabels().stream().map(Label::getId)
                                 .collect(java.util.stream.Collectors.toSet());
 
@@ -1202,6 +1204,8 @@ public class TicketService {
                                 .sprintName(sprintName)
                                 .milestoneId(milestoneId)
                                 .milestoneName(milestoneName)
+                                .releaseId(releaseId)
+                                .releaseVersion(releaseVersion)
                                 .labelIds(labelIds)
 
                                 .deletedAt(ticket.getDeletedAt())

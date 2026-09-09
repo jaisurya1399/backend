@@ -68,6 +68,9 @@ public class TicketResponse {
     private Long milestoneId;
     private String milestoneName;
 
+    private Long releaseId;
+    private String releaseVersion;
+
     private Set<Long> labelIds;
 
     private LocalDateTime deletedAt;

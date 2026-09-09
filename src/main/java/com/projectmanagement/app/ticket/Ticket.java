@@ -9,6 +9,7 @@ import com.projectmanagement.app.epic.Epic;
 import com.projectmanagement.app.label.Label;
 import com.projectmanagement.app.milestone.Milestone;
 import com.projectmanagement.app.project.Project;
+import com.projectmanagement.app.release.ReleaseVersion;
 import com.projectmanagement.app.sprint.Sprint;
 import com.projectmanagement.app.user.User;
 
@@ -113,6 +114,10 @@ public class Ticket {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sprint_id", foreignKey = @ForeignKey(name = "tickets_sprint_id_foreign"))
     private Sprint sprint;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "release_id", foreignKey = @ForeignKey(name = "tickets_release_id_foreign"))
+    private ReleaseVersion release;
 
     // =========================================================
     // MILESTONE
