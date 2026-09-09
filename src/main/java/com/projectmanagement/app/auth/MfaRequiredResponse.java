@@ -1,7 +1,5 @@
 package com.projectmanagement.app.auth;
 
-import java.util.List;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -13,17 +11,8 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AuthMeResponse {
-
-    private Long userId;
-
-    private String name;
-
+public class MfaRequiredResponse {
+    private boolean mfaRequired;
+    private String mfaToken;
     private String email;
-
-    private String role;
-
-    private List<String> permissions;
-
-    private boolean mfaEnabled;
 }

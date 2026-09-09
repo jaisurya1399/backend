@@ -1,5 +1,7 @@
 package com.projectmanagement.app.auth;
 
+import java.util.List;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -25,4 +27,10 @@ public class AuthResponse {
     private String email;
 
     private String role;
+
+    private List<String> permissions;
+
+    private boolean mfaRequired;
+
+    private String mfaToken;
 }

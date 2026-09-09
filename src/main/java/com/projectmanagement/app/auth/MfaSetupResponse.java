@@ -13,17 +13,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AuthMeResponse {
-
-    private Long userId;
-
-    private String name;
-
-    private String email;
-
-    private String role;
-
-    private List<String> permissions;
-
-    private boolean mfaEnabled;
+public class MfaSetupResponse {
+    private boolean enabled;
+    private String secret;
+    private String otpauthUrl;
+    private List<String> recoveryCodes;
 }

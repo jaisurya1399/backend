@@ -1,22 +1,25 @@
 package com.projectmanagement.app.auth;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-
     private final AuthService authService;
     private final ClientIpResolver clientIpResolver;
 
@@ -26,11 +29,39 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(
-            @Valid @RequestBody AuthRequest request,
-            HttpServletRequest httpRequest) {
+    public ResponseEntity<?> login(@Valid @RequestBody AuthRequest request, HttpServletRequest httpRequest) {
         return ResponseEntity.ok(
-                authService.login(request, clientIpResolver.resolve(httpRequest)));
+                authService.login(request, clientIpResolver.resolve(httpRequest), httpRequest.getHeader("User-Agent")));
+    }
+
+    @PostMapping("/mfa/verify")
+    public ResponseEntity<AuthResponse> verifyMfa(@Valid @RequestBody MfaVerifyRequest request,
+            HttpServletRequest httpRequest) {
+        return ResponseEntity.ok(authService.verifyMfa(request, clientIpResolver.resolve(httpRequest),
+                httpRequest.getHeader("User-Agent")));
+    }
+
+    @GetMapping("/mfa/status")
+    public ResponseEntity<Boolean> mfaStatus(Authentication authentication) {
+        return ResponseEntity.ok(authService.isMfaEnabled(authentication.getName()));
+    }
+
+    @PostMapping("/mfa/setup")
+    public ResponseEntity<MfaSetupResponse> setupMfa(Authentication authentication) {
+        return ResponseEntity.ok(authService.setupMfa(authentication.getName()));
+    }
+
+    @PostMapping("/mfa/confirm")
+    public ResponseEntity<MfaSetupResponse> confirmMfa(Authentication authentication,
+            @Valid @RequestBody MfaConfirmRequest request) {
+        return ResponseEntity.ok(authService.confirmMfa(authentication.getName(), request.getCode()));
+    }
+
+    @PostMapping("/mfa/disable")
+    public ResponseEntity<Void> disableMfa(Authentication authentication,
+            @Valid @RequestBody MfaDisableRequest request) {
+        authService.disableMfa(authentication.getName(), request.getCode());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/refresh")
@@ -39,14 +70,30 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(
-            @RequestHeader("Authorization") String authorization,
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authorization,
             Authentication authentication,
             @Valid @RequestBody LogoutRequest request) {
-        if (!authorization.startsWith("Bearer ") || authorization.length() <= 7) {
+        if (!authorization.startsWith("Bearer ") || authorization.length() <= 7)
             return ResponseEntity.badRequest().build();
-        }
         authService.logout(authorization.substring(7), authentication.getName(), request);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/sessions")
+    public ResponseEntity<List<SessionResponse>> sessions(Authentication authentication,
+            @RequestHeader(value = "X-Refresh-Token", required = false) String refreshToken) {
+        return ResponseEntity.ok(authService.getSessions(authentication.getName(), refreshToken));
+    }
+
+    @DeleteMapping("/sessions/{id}")
+    public ResponseEntity<Void> revokeSession(Authentication authentication, @PathVariable Long id) {
+        authService.revokeSession(authentication.getName(), id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/sessions/revoke-all")
+    public ResponseEntity<Void> revokeAllSessions(Authentication authentication) {
+        authService.revokeAllSessions(authentication.getName());
         return ResponseEntity.noContent().build();
     }
 
@@ -75,21 +122,12 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<AuthMeResponse> getCurrentUser(
-            Authentication authentication) {
-
-        String email = authentication.getName();
-
-        return ResponseEntity.ok(
-                authService.getCurrentUser(email));
+    public ResponseEntity<AuthMeResponse> getCurrentUser(Authentication authentication) {
+        return ResponseEntity.ok(authService.getCurrentUser(authentication.getName()));
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<SignupResponse> signup(
-            @Valid @RequestBody SignupRequest request) {
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(authService.signup(request));
+    public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(request));
     }
 }

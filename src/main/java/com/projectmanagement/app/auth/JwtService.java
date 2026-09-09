@@ -51,6 +51,29 @@ public class JwtService {
                 .compact();
     }
 
+    public String generateMfaChallenge(String username) {
+        Date now = new Date();
+        Date expiration = new Date(now.getTime() + 5 * 60 * 1000L);
+        return Jwts.builder()
+                .subject(username)
+                .claim("purpose", "mfa")
+                .issuer(issuer)
+                .id(UUID.randomUUID().toString())
+                .issuedAt(now)
+                .expiration(expiration)
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    public boolean isMfaChallenge(String token) {
+        try {
+            return "mfa".equals(extractClaim(token, claims -> claims.get("purpose", String.class)))
+                    && !isTokenExpired(token);
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
     public String extractUsername(String token) {
         return extractClaim(
                 token,
