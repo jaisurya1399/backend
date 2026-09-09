@@ -69,6 +69,11 @@ public class ProjectDashboardAnalyticsService {
         out.put("controlChart", controlChart(tickets, histories));
         out.put("leadCycleTime", leadCycle(tickets, histories));
         out.put("createdResolved", createdResolved(tickets, days));
+        out.put("statusDistribution", statusDistribution(tickets));
+        out.put("priorityDistribution", priorityDistribution(tickets));
+        out.put("assigneeWorkload", assigneeWorkload(tickets));
+        out.put("issueAging", issueAging(tickets));
+        out.put("estimationSummary", estimationSummary(tickets));
         return out;
     }
 
@@ -190,6 +195,69 @@ public class ProjectDashboardAnalyticsService {
             out.add(row("date", d.toString(), "created", c, "resolved", r));
         }
         return out;
+    }
+
+    private List<Map<String, Object>> statusDistribution(List<Ticket> tickets) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (Ticket t : tickets) {
+            String k = t.getStatus() == null ? "UNSPECIFIED" : t.getStatus().getName();
+            counts.merge(k, 1L, Long::sum);
+        }
+        return counts.entrySet().stream().map(e -> row("status", e.getKey(), "count", e.getValue())).toList();
+    }
+
+    private List<Map<String, Object>> priorityDistribution(List<Ticket> tickets) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (Ticket t : tickets) {
+            String k = t.getPriority() == null ? "UNSPECIFIED" : t.getPriority().getName();
+            counts.merge(k, 1L, Long::sum);
+        }
+        return counts.entrySet().stream().map(e -> row("priority", e.getKey(), "count", e.getValue())).toList();
+    }
+
+    private List<Map<String, Object>> assigneeWorkload(List<Ticket> tickets) {
+        Map<String, List<Ticket>> grouped = new LinkedHashMap<>();
+        for (Ticket t : tickets) {
+            String k = t.getResponsible() == null ? "Unassigned" : t.getResponsible().getName();
+            grouped.computeIfAbsent(k, x -> new ArrayList<>()).add(t);
+        }
+        return grouped.entrySet().stream().map(e -> {
+            BigDecimal estimate = e.getValue().stream().map(Ticket::getEstimation).filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            long done = e.getValue().stream()
+                    .filter(t -> t.getStatus() != null && t.getStatus().getCategory() == TicketStatusCategory.DONE)
+                    .count();
+            return row("assignee", e.getKey(), "issues", e.getValue().size(), "completed", done, "estimated", estimate);
+        }).toList();
+    }
+
+    private List<Map<String, Object>> issueAging(List<Ticket> tickets) {
+        LocalDateTime now = LocalDateTime.now();
+        Map<String, Long> buckets = new LinkedHashMap<>();
+        buckets.put("0-7 days", 0L);
+        buckets.put("8-30 days", 0L);
+        buckets.put("31-60 days", 0L);
+        buckets.put("61-90 days", 0L);
+        buckets.put("90+ days", 0L);
+        for (Ticket t : tickets) {
+            if (t.getResolvedAt() != null || t.getCreatedAt() == null)
+                continue;
+            long age = Duration.between(t.getCreatedAt(), now).toDays();
+            String b = age <= 7 ? "0-7 days"
+                    : age <= 30 ? "8-30 days" : age <= 60 ? "31-60 days" : age <= 90 ? "61-90 days" : "90+ days";
+            buckets.put(b, buckets.get(b) + 1);
+        }
+        return buckets.entrySet().stream().map(e -> row("bucket", e.getKey(), "count", e.getValue())).toList();
+    }
+
+    private Map<String, Object> estimationSummary(List<Ticket> tickets) {
+        BigDecimal total = tickets.stream().map(Ticket::getEstimation).filter(Objects::nonNull).reduce(BigDecimal.ZERO,
+                BigDecimal::add);
+        BigDecimal done = tickets.stream()
+                .filter(t -> t.getStatus() != null && t.getStatus().getCategory() == TicketStatusCategory.DONE)
+                .map(Ticket::getEstimation).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return row("totalEstimated", total, "completedEstimated", done, "remainingEstimated", total.subtract(done),
+                "issueCount", tickets.size());
     }
 
     private TicketStatusCategory category(Ticket t) {
