@@ -1,6 +1,7 @@
 package com.projectmanagement.app.project;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,8 +24,7 @@ public class ProjectUserController {
 
         private final ProjectUserService projectUserService;
 
-        public ProjectUserController(
-                        ProjectUserService projectUserService) {
+        public ProjectUserController(ProjectUserService projectUserService) {
                 this.projectUserService = projectUserService;
         }
 
@@ -122,8 +122,7 @@ public class ProjectUserController {
 
                 return ResponseEntity
                                 .status(HttpStatus.CREATED)
-                                .body(
-                                                projectUserService.createProjectUser(request));
+                                .body(projectUserService.createProjectUser(request));
         }
 
         // ---------------------------------------------------------
@@ -140,6 +139,25 @@ public class ProjectUserController {
                                 projectUserService.updateProjectUser(
                                                 id,
                                                 request));
+        }
+
+        // ---------------------------------------------------------
+        // OPEN / CLOSE MEMBER AVAILABILITY SELF UPDATE
+        // ---------------------------------------------------------
+
+        @PutMapping("/{id}/availability-self-update")
+        @PreAuthorize("isAuthenticated()")
+        public ResponseEntity<ProjectUserResponse> setAvailabilitySelfUpdate(
+                        @PathVariable Long id,
+                        @RequestBody Map<String, Boolean> request) {
+
+                boolean enabled = Boolean.TRUE.equals(
+                                request != null ? request.get("enabled") : Boolean.FALSE);
+
+                return ResponseEntity.ok(
+                                projectUserService.setAvailabilitySelfUpdateOpen(
+                                                id,
+                                                enabled));
         }
 
         // ---------------------------------------------------------
@@ -165,8 +183,7 @@ public class ProjectUserController {
         public ResponseEntity<Void> deleteProjectUsersByProject(
                         @PathVariable Long projectId) {
 
-                projectUserService.deleteProjectUsersByProject(
-                                projectId);
+                projectUserService.deleteProjectUsersByProject(projectId);
 
                 return ResponseEntity.noContent().build();
         }

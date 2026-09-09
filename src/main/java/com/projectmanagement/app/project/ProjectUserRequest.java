@@ -28,4 +28,6 @@ public class ProjectUserRequest {
 
     /** Required only when role == MEMBER. */
     private MemberResponsibility responsibilityRole;
+
+    private Boolean availabilitySelfUpdateOpen;
 }
