@@ -2,6 +2,7 @@ package com.projectmanagement.app.sprint;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -318,11 +319,13 @@ public class SprintService {
                 }
 
                 BigDecimal total = committedByTicket.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+                // Sprint analytics works with calendar dates only.
                 LocalDate start = sprint.getStartDate() == null
-                                ? (sprint.getCreatedAt() == null ? LocalDate.now()
-                                                : sprint.getCreatedAt().toLocalDate())
-                                : sprint.getStartDate();
-                LocalDate end = sprint.getEndDate() == null ? LocalDate.now() : sprint.getEndDate();
+                                ? dateOnly(sprint.getCreatedAt(), LocalDate.now())
+                                : dateOnly(sprint.getStartDate());
+                LocalDate end = sprint.getEndDate() == null
+                                ? LocalDate.now()
+                                : dateOnly(sprint.getEndDate());
                 if (end.isBefore(start))
                         end = start;
 
@@ -337,7 +340,7 @@ public class SprintService {
                                 if (ticket != null) {
                                         done = ticket.getStatus().getCategory() == TicketStatusCategory.DONE
                                                         && ticket.getResolvedAt() != null
-                                                        && !ticket.getResolvedAt().toLocalDate().isAfter(date);
+                                                        && !dateOnly(ticket.getResolvedAt()).isAfter(date);
                                 } else {
                                         SprintIssueSnapshot snapshot = snapshots.stream()
                                                         .filter(s -> Objects.equals(s.getTicketId(), entry.getKey()))
@@ -646,8 +649,10 @@ public class SprintService {
                 Project project = sprint.getProject();
                 projectAccessService.requireView(project);
 
-                LocalDate start = sprint.getStartDate();
-                LocalDate end = sprint.getEndDate();
+                // Sprint start/end are LocalDate values; keep the analytics
+                // contract strictly date-only (never introduce a timestamp here).
+                LocalDate start = dateOnly(sprint.getStartDate());
+                LocalDate end = dateOnly(sprint.getEndDate());
                 if (start == null || end == null || end.isBefore(start)) {
                         return List.of();
                 }
@@ -675,12 +680,17 @@ public class SprintService {
                 Map<LocalDate, MemberAvailability> projectHolidays = new LinkedHashMap<>();
 
                 for (MemberAvailability entry : availability) {
+                        LocalDate availabilityDate = dateOnly(entry.getAvailabilityDate());
+                        if (availabilityDate == null) {
+                                continue;
+                        }
+
                         if (entry.getUser() == null) {
-                                projectHolidays.put(entry.getAvailabilityDate(), entry);
+                                projectHolidays.put(availabilityDate, entry);
                         } else {
                                 memberAvailability
                                                 .computeIfAbsent(entry.getUser().getId(), k -> new LinkedHashMap<>())
-                                                .put(entry.getAvailabilityDate(), entry);
+                                                .put(availabilityDate, entry);
                         }
                 }
 
@@ -799,9 +809,9 @@ public class SprintService {
                         Map<LocalDate, MemberAvailability> memberEntries,
                         List<ProjectWorkingHours> workingHourHistory) {
 
-                LocalDate joinDate = projectUser.getCreatedAt() == null
-                                ? start
-                                : projectUser.getCreatedAt().toLocalDate();
+                // Capacity planning is date-only. The project membership
+                // createdAt is a timestamp, so explicitly discard its time part.
+                LocalDate joinDate = dateOnly(projectUser.getCreatedAt(), start);
 
                 BigDecimal baseCapacityHours = BigDecimal.ZERO;
                 BigDecimal capacityHours = BigDecimal.ZERO;
@@ -969,6 +979,27 @@ public class SprintService {
                 public int getWeekendDays() {
                         return weekendDays;
                 }
+        }
+
+        /**
+         * Converts a timestamp to its calendar date.
+         *
+         * IMPORTANT:
+         * Time-of-day is intentionally ignored for sprint/capacity calculations.
+         * For example:
+         * 2026-09-14T00:00:00 -> 2026-09-14
+         * 2026-09-14T23:59:59 -> 2026-09-14
+         */
+        private LocalDate dateOnly(LocalDateTime value, LocalDate fallback) {
+                return value == null ? fallback : value.toLocalDate();
+        }
+
+        private LocalDate dateOnly(LocalDateTime value) {
+                return value == null ? null : value.toLocalDate();
+        }
+
+        private LocalDate dateOnly(LocalDate value) {
+                return value;
         }
 
         private BigDecimal effectiveWorkingHours(
