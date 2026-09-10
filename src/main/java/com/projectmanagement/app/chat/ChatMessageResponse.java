@@ -18,7 +18,10 @@ public class ChatMessageResponse {
     private String roomType;
     private Long roomId;
     private Long senderId;
+    private String senderName;
+    private String senderEmail;
     private Long recipientId;
+    private String recipientName;
     private String content;
     private LocalDateTime createdAt;
 }

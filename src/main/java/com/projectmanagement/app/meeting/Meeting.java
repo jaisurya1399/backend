@@ -2,6 +2,7 @@ package com.projectmanagement.app.meeting;
 
 import java.time.LocalDateTime;
 
+import com.projectmanagement.app.epic.Epic;
 import com.projectmanagement.app.project.Project;
 
 import jakarta.persistence.Column;
@@ -22,7 +23,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "project_meetings", indexes = @Index(name = "idx_project_meetings_project_time", columnList = "project_id,starts_at"))
+@Table(name = "project_meetings", indexes = {
+        @Index(name = "idx_project_meetings_project_time", columnList = "project_id,starts_at"),
+        @Index(name = "idx_project_meetings_epic", columnList = "epic_id") })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -35,6 +38,9 @@ public class Meeting {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "epic_id")
+    private Epic epic;
     @Column(nullable = false, length = 255)
     private String title;
     @Column(columnDefinition = "TEXT")
@@ -43,10 +49,16 @@ public class Meeting {
     private LocalDateTime startsAt;
     @Column(name = "ends_at")
     private LocalDateTime endsAt;
+    @Column(name = "meeting_type", nullable = false, length = 20)
+    private String meetingType;
     @Column(name = "meeting_url", length = 1000)
     private String meetingUrl;
+    @Column(length = 1000)
+    private String location;
     @Column(nullable = false, length = 30)
     private String status;
+    @Column(name = "invite_all_team", nullable = false)
+    private boolean inviteAllTeam;
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
     @Column(name = "created_at", nullable = false)
@@ -58,5 +70,7 @@ public class Meeting {
             createdAt = LocalDateTime.now();
         if (status == null)
             status = "SCHEDULED";
+        if (meetingType == null)
+            meetingType = "ONLINE";
     }
 }

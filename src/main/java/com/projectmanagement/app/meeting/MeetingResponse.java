@@ -1,6 +1,7 @@
 package com.projectmanagement.app.meeting;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,7 +15,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MeetingResponse {
-    private Long id, projectId, createdBy;
-    private String projectName, title, agenda, meetingUrl, status;
+    private Long id, projectId, epicId, createdBy;
+    private String projectName, epicName, title, agenda, meetingType, meetingUrl, location, status;
+    private boolean inviteAllTeam;
     private LocalDateTime startsAt, endsAt, createdAt;
+    private List<MeetingAttendeeResponse> attendees;
 }
