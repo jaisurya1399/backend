@@ -816,7 +816,8 @@ public class SprintService {
                                 continue;
                         }
 
-                        // Standard capacity planning treats Saturday/Sunday as non-working days.
+                        // Saturday/Sunday are non-working days and do not contribute
+                        // to either working days or available capacity.
                         if (date.getDayOfWeek().getValue() >= 6) {
                                 weekendDays++;
                                 continue;
@@ -824,21 +825,25 @@ public class SprintService {
 
                         BigDecimal dayHours = effectiveWorkingHours(workingHourHistory, date);
                         baseCapacityHours = baseCapacityHours.add(dayHours);
-                        workingDays++;
 
-                        // Project-wide holiday/leave counts only when it was planned
-                        // before the sprint started.
+                        /*
+                         * IMPORTANT:
+                         * Availability entries apply to the sprint date regardless of
+                         * when the availability record was created. A holiday on
+                         * 2026-09-14 must reduce a sprint that contains 2026-09-14,
+                         * even if the holiday record was created after the sprint began.
+                         */
+
+                        // Project-wide holiday.
                         MemberAvailability projectEntry = projectHolidays.get(date);
-                        if (isPrePlannedLeave(projectEntry, start)) {
+                        if (isLeave(projectEntry)) {
                                 holidayDays++;
                                 continue;
                         }
 
+                        // Member-specific holiday/unavailable day.
                         MemberAvailability entry = memberEntries.get(date);
-
-                        // Member leave/off counts only when it was planned before
-                        // the sprint started.
-                        if (isPrePlannedLeave(entry, start)) {
+                        if (isLeave(entry)) {
                                 if (entry.getAvailabilityType() == MemberAvailabilityType.HOLIDAY) {
                                         holidayDays++;
                                 } else {
@@ -847,11 +852,17 @@ public class SprintService {
                                 continue;
                         }
 
-                        // HALF_DAY is a working day but contributes half the hours.
+                        // This is an effective working day because it is not a
+                        // weekend, holiday, or unavailable day.
+                        workingDays++;
+
+                        // HALF_DAY remains a working day but contributes half the hours.
                         if (entry != null && entry.getAvailabilityType() == MemberAvailabilityType.HALF_DAY) {
                                 halfDayDays++;
                                 capacityHours = capacityHours.add(
-                                                dayHours.divide(BigDecimal.valueOf(2), 2,
+                                                dayHours.divide(
+                                                                BigDecimal.valueOf(2),
+                                                                2,
                                                                 java.math.RoundingMode.HALF_UP));
                         } else if (entry != null
                                         && entry.getAvailabilityType() == MemberAvailabilityType.AVAILABLE
@@ -881,19 +892,21 @@ public class SprintService {
                                 weekendDays);
         }
 
-        private boolean isPrePlannedLeave(MemberAvailability entry, LocalDate sprintStart) {
+        /**
+         * Returns true when the availability entry removes the member's full
+         * working capacity for that calendar date.
+         *
+         * The record creation date is deliberately NOT considered here.
+         * Capacity planning is date-based: if a holiday/unavailable entry exists
+         * for a date inside the sprint, that date must reduce capacity.
+         */
+        private boolean isLeave(MemberAvailability entry) {
                 if (entry == null || entry.getAvailabilityType() == null) {
                         return false;
                 }
 
-                if (entry.getAvailabilityType() != MemberAvailabilityType.HOLIDAY
-                                && entry.getAvailabilityType() != MemberAvailabilityType.UNAVAILABLE) {
-                        return false;
-                }
-
-                // Only leave that existed before the sprint started is planned leave.
-                return entry.getCreatedAt() != null
-                                && entry.getCreatedAt().toLocalDate().isBefore(sprintStart);
+                return entry.getAvailabilityType() == MemberAvailabilityType.HOLIDAY
+                                || entry.getAvailabilityType() == MemberAvailabilityType.UNAVAILABLE;
         }
 
         private static class CapacityCalculation {
