@@ -49,9 +49,6 @@ public class TicketRequest {
     @Positive(message = "Project ID must be positive")
     private Long projectId;
 
-    @Size(max = 255, message = "Ticket code must not exceed 255 characters")
-    private String code;
-
     @NotNull(message = "Ticket type ID is required")
     @Positive(message = "Ticket type ID must be positive")
     private Long typeId;
