@@ -46,7 +46,7 @@ public class NotificationService {
 
                 return notificationRepository
                                 .findByNotifiableTypeAndNotifiableIdOrderByCreatedAtDesc(
-                                                notifiableType,
+                                                canonicalType(notifiableType),
                                                 notifiableId)
                                 .stream()
                                 .map(this::toResponse)
@@ -60,7 +60,7 @@ public class NotificationService {
 
                 return notificationRepository
                                 .findByNotifiableTypeAndNotifiableIdAndReadAtIsNull(
-                                                notifiableType,
+                                                canonicalType(notifiableType),
                                                 notifiableId)
                                 .stream()
                                 .map(this::toResponse)
@@ -74,7 +74,7 @@ public class NotificationService {
 
                 return notificationRepository
                                 .findByNotifiableTypeAndNotifiableIdAndReadAtIsNotNull(
-                                                notifiableType,
+                                                canonicalType(notifiableType),
                                                 notifiableId)
                                 .stream()
                                 .map(this::toResponse)
@@ -86,7 +86,7 @@ public class NotificationService {
 
                 Notification notification = Notification.builder()
                                 .type(request.getType())
-                                .notifiableType(request.getNotifiableType())
+                                .notifiableType(canonicalType(request.getNotifiableType()))
                                 .notifiableId(request.getNotifiableId())
                                 .data(request.getData())
                                 .build();
@@ -139,7 +139,7 @@ public class NotificationService {
 
                 return notificationRepository
                                 .countByNotifiableTypeAndNotifiableId(
-                                                notifiableType,
+                                                canonicalType(notifiableType),
                                                 notifiableId);
         }
 
@@ -150,8 +150,12 @@ public class NotificationService {
 
                 return notificationRepository
                                 .countByNotifiableTypeAndNotifiableIdAndReadAtIsNull(
-                                                notifiableType,
+                                                canonicalType(notifiableType),
                                                 notifiableId);
+        }
+
+        private String canonicalType(String value) {
+                return value == null ? "USER" : value.trim().toUpperCase();
         }
 
         private Notification getEntity(UUID id) {

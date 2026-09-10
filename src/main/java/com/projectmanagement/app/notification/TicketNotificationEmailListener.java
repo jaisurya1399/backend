@@ -32,7 +32,10 @@ public class TicketNotificationEmailListener {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void deliver(TicketNotificationCreatedEvent event) {
-        if (!preferenceService.isEmailEnabled(event.recipient().getId(), event.type())) return;
+        if (!event.emailEnabled())
+            return;
+        if (!preferenceService.isEmailEnabled(event.recipient().getId(), event.type()))
+            return;
         SimpleMailMessage email = new SimpleMailMessage();
         email.setFrom(from);
         email.setTo(event.recipient().getEmail());

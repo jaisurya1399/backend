@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.projectmanagement.app.auth.CurrentUserService;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ import lombok.RequiredArgsConstructor;
 public class NotificationController {
 
         private final NotificationService notificationService;
+        private final CurrentUserService currentUserService;
 
         @GetMapping
         @PreAuthorize("hasAuthority('notification.view') or hasRole('ADMIN')")
@@ -47,11 +50,10 @@ public class NotificationController {
         }
 
         @GetMapping("/user")
-        @PreAuthorize("hasAuthority('notification.view') or hasRole('ADMIN')")
         public ResponseEntity<List<NotificationResponse>> getByNotifiable(
                         @RequestParam String notifiableType,
                         @RequestParam @Positive Long notifiableId) {
-
+                requireOwnUser(notifiableId);
                 return ResponseEntity.ok(
                                 notificationService.getByNotifiable(
                                                 notifiableType,
@@ -59,11 +61,10 @@ public class NotificationController {
         }
 
         @GetMapping("/user/unread")
-        @PreAuthorize("hasAuthority('notification.view') or hasRole('ADMIN')")
         public ResponseEntity<List<NotificationResponse>> getUnread(
                         @RequestParam String notifiableType,
                         @RequestParam @Positive Long notifiableId) {
-
+                requireOwnUser(notifiableId);
                 return ResponseEntity.ok(
                                 notificationService.getUnread(
                                                 notifiableType,
@@ -71,11 +72,10 @@ public class NotificationController {
         }
 
         @GetMapping("/user/read")
-        @PreAuthorize("hasAuthority('notification.view') or hasRole('ADMIN')")
         public ResponseEntity<List<NotificationResponse>> getRead(
                         @RequestParam String notifiableType,
                         @RequestParam @Positive Long notifiableId) {
-
+                requireOwnUser(notifiableId);
                 return ResponseEntity.ok(
                                 notificationService.getRead(
                                                 notifiableType,
@@ -83,11 +83,10 @@ public class NotificationController {
         }
 
         @GetMapping("/user/count")
-        @PreAuthorize("hasAuthority('notification.view') or hasRole('ADMIN')")
         public ResponseEntity<Long> count(
                         @RequestParam String notifiableType,
                         @RequestParam @Positive Long notifiableId) {
-
+                requireOwnUser(notifiableId);
                 return ResponseEntity.ok(
                                 notificationService.count(
                                                 notifiableType,
@@ -95,11 +94,10 @@ public class NotificationController {
         }
 
         @GetMapping("/user/unread-count")
-        @PreAuthorize("hasAuthority('notification.view') or hasRole('ADMIN')")
         public ResponseEntity<Long> countUnread(
                         @RequestParam String notifiableType,
                         @RequestParam @Positive Long notifiableId) {
-
+                requireOwnUser(notifiableId);
                 return ResponseEntity.ok(
                                 notificationService.countUnread(
                                                 notifiableType,
@@ -117,43 +115,64 @@ public class NotificationController {
         }
 
         @PutMapping("/{id}/read")
-        @PreAuthorize("hasAuthority('notification.update') or hasRole('ADMIN')")
         public ResponseEntity<NotificationResponse> markAsRead(
                         @PathVariable UUID id) {
-
+                requireOwnNotification(id);
                 return ResponseEntity.ok(
                                 notificationService.markAsRead(id));
         }
 
         @PutMapping("/{id}/unread")
-        @PreAuthorize("hasAuthority('notification.update') or hasRole('ADMIN')")
         public ResponseEntity<NotificationResponse> markAsUnread(
                         @PathVariable UUID id) {
-
+                requireOwnNotification(id);
                 return ResponseEntity.ok(
                                 notificationService.markAsUnread(id));
         }
 
         @DeleteMapping("/{id}")
-        @PreAuthorize("hasAuthority('notification.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> delete(
                         @PathVariable UUID id) {
-
+                requireOwnNotification(id);
                 notificationService.delete(id);
 
                 return ResponseEntity.noContent().build();
         }
 
         @DeleteMapping("/user")
-        @PreAuthorize("hasAuthority('notification.delete') or hasRole('ADMIN')")
         public ResponseEntity<Void> deleteByNotifiable(
                         @RequestParam String notifiableType,
                         @RequestParam @Positive Long notifiableId) {
-
+                requireOwnUser(notifiableId);
                 notificationService.deleteByNotifiable(
                                 notifiableType,
                                 notifiableId);
 
                 return ResponseEntity.noContent().build();
         }
+
+        private void requireOwnUser(Long userId) {
+                Long currentId = currentUserService.getCurrentUserId();
+                boolean admin = org.springframework.security.core.context.SecurityContextHolder
+                                .getContext().getAuthentication() != null
+                                && org.springframework.security.core.context.SecurityContextHolder
+                                                .getContext().getAuthentication().getAuthorities().stream()
+                                                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+                boolean canViewAll = org.springframework.security.core.context.SecurityContextHolder
+                                .getContext().getAuthentication() != null
+                                && org.springframework.security.core.context.SecurityContextHolder
+                                                .getContext().getAuthentication().getAuthorities().stream()
+                                                .anyMatch(a -> "notification.view".equalsIgnoreCase(a.getAuthority()));
+                if (!admin && !canViewAll && !java.util.Objects.equals(currentId, userId)) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                                        org.springframework.http.HttpStatus.FORBIDDEN,
+                                        "You can only access your own notifications");
+                }
+        }
+
+        private void requireOwnNotification(UUID id) {
+                NotificationResponse notification = notificationService.getById(id);
+                requireOwnUser(notification.getNotifiableId());
+        }
+
 }
