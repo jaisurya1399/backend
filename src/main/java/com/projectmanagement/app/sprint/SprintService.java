@@ -12,14 +12,14 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.projectmanagement.app.project.Project;
-import com.projectmanagement.app.project.ProjectAccessService;
-import com.projectmanagement.app.project.ProjectRepository;
-import com.projectmanagement.app.project.ProjectUserRepository;
-import com.projectmanagement.app.project.ProjectUser;
 import com.projectmanagement.app.project.MemberAvailability;
 import com.projectmanagement.app.project.MemberAvailabilityRepository;
 import com.projectmanagement.app.project.MemberAvailabilityType;
+import com.projectmanagement.app.project.Project;
+import com.projectmanagement.app.project.ProjectAccessService;
+import com.projectmanagement.app.project.ProjectRepository;
+import com.projectmanagement.app.project.ProjectUser;
+import com.projectmanagement.app.project.ProjectUserRepository;
 import com.projectmanagement.app.project.ProjectWorkingHours;
 import com.projectmanagement.app.project.ProjectWorkingHoursRepository;
 import com.projectmanagement.app.ticket.Ticket;
@@ -271,7 +271,8 @@ public class SprintService {
                 for (Ticket ticket : sprintTickets) {
                         SprintIssueSnapshot snapshot = snapshotByTicket.get(ticket.getId());
                         if (snapshot == null) {
-                                snapshot = SprintIssueSnapshot.builder().sprint(sprint).ticketId(ticket.getId()).build();
+                                snapshot = SprintIssueSnapshot.builder().sprint(sprint).ticketId(ticket.getId())
+                                                .build();
                         }
                         snapshot.setResolvedAt(ticket.getResolvedAt());
                         snapshot.setFinalStatusCategory(ticket.getStatus().getCategory());
@@ -318,10 +319,12 @@ public class SprintService {
 
                 BigDecimal total = committedByTicket.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
                 LocalDate start = sprint.getStartDate() == null
-                                ? (sprint.getCreatedAt() == null ? LocalDate.now() : sprint.getCreatedAt().toLocalDate())
+                                ? (sprint.getCreatedAt() == null ? LocalDate.now()
+                                                : sprint.getCreatedAt().toLocalDate())
                                 : sprint.getStartDate();
                 LocalDate end = sprint.getEndDate() == null ? LocalDate.now() : sprint.getEndDate();
-                if (end.isBefore(start)) end = start;
+                if (end.isBefore(start))
+                        end = start;
 
                 Map<Long, Ticket> liveById = new LinkedHashMap<>();
                 liveTickets.forEach(t -> liveById.put(t.getId(), t));
@@ -337,12 +340,15 @@ public class SprintService {
                                                         && !ticket.getResolvedAt().toLocalDate().isAfter(date);
                                 } else {
                                         SprintIssueSnapshot snapshot = snapshots.stream()
-                                                        .filter(s -> Objects.equals(s.getTicketId(), entry.getKey())).findFirst().orElse(null);
-                                        done = snapshot != null && snapshot.getFinalStatusCategory() == TicketStatusCategory.DONE
+                                                        .filter(s -> Objects.equals(s.getTicketId(), entry.getKey()))
+                                                        .findFirst().orElse(null);
+                                        done = snapshot != null && snapshot
+                                                        .getFinalStatusCategory() == TicketStatusCategory.DONE
                                                         && snapshot.getResolvedAt() != null
                                                         && !snapshot.getResolvedAt().toLocalDate().isAfter(date);
                                 }
-                                if (done) completed = completed.add(entry.getValue());
+                                if (done)
+                                        completed = completed.add(entry.getValue());
                         }
                         BigDecimal remaining = total.subtract(completed).max(BigDecimal.ZERO);
                         points.add(SprintProgressPointResponse.builder().date(date).scopeEstimate(total)
@@ -449,38 +455,54 @@ public class SprintService {
         @Transactional(readOnly = true)
         public SprintStatisticsResponse statistics(Long sprintId) {
                 Sprint sprint = getSprint(sprintId);
+                projectAccessService.requireView(sprint.getProject());
 
-                List<Ticket> tickets = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
+                List<Ticket> tickets = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId)
+                                .stream()
+                                .filter(ticket -> ticket.getDeletedAt() == null)
+                                .toList();
+
+                long assignedTickets = tickets.stream()
+                                .filter(ticket -> ticket.getResponsible() != null)
+                                .count();
+
+                long unassignedTickets = tickets.stream()
+                                .filter(ticket -> ticket.getResponsible() == null)
+                                .count();
 
                 BigDecimal totalEstimation = tickets.stream()
                                 .map(Ticket::getEstimation)
-                                .filter(value -> value != null)
+                                .map(this::nz)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                /*
-                 * Completed estimation can be calculated later
-                 * according to your TicketStatus configuration.
-                 *
-                 * Currently we calculate total sprint estimation
-                 * safely without assuming a specific status name.
-                 */
                 BigDecimal completedEstimation = tickets.stream()
-                                .filter(ticket -> ticket.getStatus().getCategory() == TicketStatusCategory.DONE)
+                                .filter(ticket -> ticket.getStatus() != null
+                                                && ticket.getStatus().getCategory() == TicketStatusCategory.DONE)
                                 .map(Ticket::getEstimation)
-                                .filter(value -> value != null)
+                                .map(this::nz)
                                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-                BigDecimal remainingEstimation = totalEstimation.subtract(completedEstimation);
+                BigDecimal remainingEstimation = totalEstimation
+                                .subtract(completedEstimation)
+                                .max(BigDecimal.ZERO);
+
+                BigDecimal completionPercent = totalEstimation.signum() == 0
+                                ? BigDecimal.ZERO
+                                : completedEstimation
+                                                .multiply(BigDecimal.valueOf(100))
+                                                .divide(totalEstimation, 2,
+                                                                java.math.RoundingMode.HALF_UP);
 
                 return SprintStatisticsResponse.builder()
                                 .sprintId(sprint.getId())
                                 .sprintName(sprint.getName())
                                 .totalTickets((long) tickets.size())
-                                .assignedTickets((long) tickets.size())
-                                .backlogTickets(0L)
+                                .assignedTickets(assignedTickets)
+                                .backlogTickets(unassignedTickets)
                                 .totalEstimation(totalEstimation)
                                 .completedEstimation(completedEstimation)
                                 .remainingEstimation(remainingEstimation)
+                                .completionPercent(completionPercent)
                                 .build();
         }
 
@@ -492,7 +514,8 @@ public class SprintService {
                 Project project = getProject(projectId);
                 projectAccessService.requireView(project);
                 return sprintRepository.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
-                                .filter(s -> s.getStatus() == SprintStatus.COMPLETED || s.getStatus() == SprintStatus.CANCELLED)
+                                .filter(s -> s.getStatus() == SprintStatus.COMPLETED
+                                                || s.getStatus() == SprintStatus.CANCELLED)
                                 .map(this::historyRow).toList();
         }
 
@@ -505,20 +528,32 @@ public class SprintService {
                 projectAccessService.requireView(project);
                 List<SprintVelocityResponse.SprintVelocityPoint> rows = sprintRepository
                                 .findByProjectIdAndStatus(projectId, SprintStatus.COMPLETED).stream()
-                                .sorted(Comparator.comparing(Sprint::getStartDate, Comparator.nullsLast(Comparator.naturalOrder())))
+                                .sorted(Comparator.comparing(Sprint::getStartDate,
+                                                Comparator.nullsLast(Comparator.naturalOrder())))
                                 .map(s -> {
-                                        List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(s.getId());
-                                        BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                                        BigDecimal completed = snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
-                                                        .map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                                        long completedTickets = snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE).count();
-                                        return SprintVelocityResponse.SprintVelocityPoint.builder().sprintId(s.getId()).sprintName(s.getName())
+                                        List<SprintIssueSnapshot> snapshots = snapshotRepository
+                                                        .findBySprintIdOrderByTicketIdAsc(s.getId());
+                                        BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation()))
+                                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                                        BigDecimal completed = snapshots.stream().filter(
+                                                        x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                        .map(x -> nz(x.getEstimation()))
+                                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                                        long completedTickets = snapshots.stream().filter(
+                                                        x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                        .count();
+                                        return SprintVelocityResponse.SprintVelocityPoint.builder().sprintId(s.getId())
+                                                        .sprintName(s.getName())
                                                         .committedEstimate(committed).completedEstimate(completed)
-                                                        .committedTickets((long) snapshots.size()).completedTickets(completedTickets).build();
+                                                        .committedTickets((long) snapshots.size())
+                                                        .completedTickets(completedTickets).build();
                                 }).toList();
-                BigDecimal total = rows.stream().map(SprintVelocityResponse.SprintVelocityPoint::getCompletedEstimate).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal avg = rows.isEmpty() ? BigDecimal.ZERO : total.divide(BigDecimal.valueOf(rows.size()), 2, java.math.RoundingMode.HALF_UP);
-                return SprintVelocityResponse.builder().projectId(projectId).averageVelocity(avg).totalCompletedEstimate(total).sprints(rows).build();
+                BigDecimal total = rows.stream().map(SprintVelocityResponse.SprintVelocityPoint::getCompletedEstimate)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal avg = rows.isEmpty() ? BigDecimal.ZERO
+                                : total.divide(BigDecimal.valueOf(rows.size()), 2, java.math.RoundingMode.HALF_UP);
+                return SprintVelocityResponse.builder().projectId(projectId).averageVelocity(avg)
+                                .totalCompletedEstimate(total).sprints(rows).build();
         }
 
         // =========================================================
@@ -530,27 +565,45 @@ public class SprintService {
                 projectAccessService.requireView(sprint.getProject());
                 List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(sprintId);
                 List<Ticket> current = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
-                Map<Long, Ticket> currentById = new LinkedHashMap<>(); current.forEach(t -> currentById.put(t.getId(), t));
-                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal completed = snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                Map<Long, Ticket> currentById = new LinkedHashMap<>();
+                current.forEach(t -> currentById.put(t.getId(), t));
+                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO,
+                                BigDecimal::add);
+                BigDecimal completed = snapshots.stream()
+                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
                                 .map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation())).reduce(BigDecimal.ZERO,
+                                BigDecimal::add);
                 BigDecimal scopeChange = currentEstimate.subtract(committed);
                 List<SprintReportResponse.SprintReportIssue> issues = snapshots.stream().map(snapshot -> {
                         Ticket ticket = currentById.get(snapshot.getTicketId());
-                        String status = ticket != null && ticket.getStatus() != null ? ticket.getStatus().getName() : snapshot.getFinalStatusCategory().name();
+                        String status = ticket != null && ticket.getStatus() != null ? ticket.getStatus().getName()
+                                        : snapshot.getFinalStatusCategory().name();
                         boolean done = snapshot.getFinalStatusCategory() == TicketStatusCategory.DONE;
                         return SprintReportResponse.SprintReportIssue.builder().ticketId(snapshot.getTicketId())
-                                        .code(ticket == null ? null : ticket.getCode()).name(ticket == null ? null : ticket.getName())
+                                        .code(ticket == null ? null : ticket.getCode())
+                                        .name(ticket == null ? null : ticket.getName())
                                         .estimation(nz(snapshot.getEstimation())).status(status)
-                                        .statusCategory(snapshot.getFinalStatusCategory().name()).completed(done).build();
+                                        .statusCategory(snapshot.getFinalStatusCategory().name()).completed(done)
+                                        .build();
                 }).toList();
-                BigDecimal completion = committed.signum() == 0 ? BigDecimal.ZERO : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2, java.math.RoundingMode.HALF_UP);
-                return SprintReportResponse.builder().sprintId(sprintId).sprintName(sprint.getName()).status(sprint.getStatus()).goal(sprint.getGoal())
-                                .committedTickets((long) snapshots.size()).completedTickets(snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE).count())
-                                .incompleteTickets(snapshots.stream().filter(x -> x.getFinalStatusCategory() != TicketStatusCategory.DONE && x.getFinalStatusCategory() != TicketStatusCategory.CANCELLED).count())
-                                .committedEstimate(committed).completedEstimate(completed).remainingEstimate(committed.subtract(completed).max(BigDecimal.ZERO))
-                                .completionPercent(completion).scopeChangeEstimate(scopeChange).commitmentCompletionPercent(completion).issues(issues).build();
+                BigDecimal completion = committed.signum() == 0 ? BigDecimal.ZERO
+                                : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2,
+                                                java.math.RoundingMode.HALF_UP);
+                return SprintReportResponse.builder().sprintId(sprintId).sprintName(sprint.getName())
+                                .status(sprint.getStatus()).goal(sprint.getGoal())
+                                .committedTickets((long) snapshots.size())
+                                .completedTickets(snapshots.stream()
+                                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                .count())
+                                .incompleteTickets(snapshots.stream().filter(x -> x
+                                                .getFinalStatusCategory() != TicketStatusCategory.DONE
+                                                && x.getFinalStatusCategory() != TicketStatusCategory.CANCELLED)
+                                                .count())
+                                .committedEstimate(committed).completedEstimate(completed)
+                                .remainingEstimate(committed.subtract(completed).max(BigDecimal.ZERO))
+                                .completionPercent(completion).scopeChangeEstimate(scopeChange)
+                                .commitmentCompletionPercent(completion).issues(issues).build();
         }
 
         // =========================================================
@@ -562,15 +615,25 @@ public class SprintService {
                 projectAccessService.requireView(sprint.getProject());
                 List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(sprintId);
                 List<Ticket> current = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
-                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal completed = snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO,
+                                BigDecimal::add);
+                BigDecimal completed = snapshots.stream()
+                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
                                 .map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal pct = committed.signum() == 0 ? BigDecimal.ZERO : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2, java.math.RoundingMode.HALF_UP);
-                return SprintCommitmentResponse.builder().sprintId(sprintId).sprintName(sprint.getName()).committedEstimate(committed)
-                                .completedEstimate(completed).remainingCommittedEstimate(committed.subtract(completed).max(BigDecimal.ZERO))
-                                .scopeChangeEstimate(currentEstimate.subtract(committed)).committedTickets((long) snapshots.size())
-                                .completedTickets(snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE).count())
+                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation())).reduce(BigDecimal.ZERO,
+                                BigDecimal::add);
+                BigDecimal pct = committed.signum() == 0 ? BigDecimal.ZERO
+                                : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2,
+                                                java.math.RoundingMode.HALF_UP);
+                return SprintCommitmentResponse.builder().sprintId(sprintId).sprintName(sprint.getName())
+                                .committedEstimate(committed)
+                                .completedEstimate(completed)
+                                .remainingCommittedEstimate(committed.subtract(completed).max(BigDecimal.ZERO))
+                                .scopeChangeEstimate(currentEstimate.subtract(committed))
+                                .committedTickets((long) snapshots.size())
+                                .completedTickets(snapshots.stream()
+                                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                .count())
                                 .currentTickets((long) current.size()).completionPercent(pct).build();
         }
 
@@ -604,10 +667,9 @@ public class SprintService {
                         }
                 });
 
-                List<MemberAvailability> availability =
-                                availabilityRepository
-                                                .findByProjectIdAndAvailabilityDateBetweenOrderByAvailabilityDateAsc(
-                                                                project.getId(), start, end);
+                List<MemberAvailability> availability = availabilityRepository
+                                .findByProjectIdAndAvailabilityDateBetweenOrderByAvailabilityDateAsc(
+                                                project.getId(), start, end);
 
                 Map<Long, Map<LocalDate, MemberAvailability>> memberAvailability = new LinkedHashMap<>();
                 Map<LocalDate, MemberAvailability> projectHolidays = new LinkedHashMap<>();
@@ -622,24 +684,25 @@ public class SprintService {
                         }
                 }
 
-                List<ProjectWorkingHours> workingHourHistory =
-                                workingHoursRepository.findByProjectIdOrderByEffectiveFromAsc(project.getId());
+                List<ProjectWorkingHours> workingHourHistory = workingHoursRepository
+                                .findByProjectIdOrderByEffectiveFromAsc(project.getId());
 
                 return projectUserRepository.findByProjectId(project.getId())
                                 .stream()
                                 .sorted(Comparator.comparing(
-                                                pu -> pu.getUser() == null ? "" :
-                                                                Objects.toString(pu.getUser().getName(), ""),
+                                                (ProjectUser pu) -> pu.getUser() == null ? ""
+                                                                : Objects.toString(pu.getUser().getName(), ""),
                                                 String.CASE_INSENSITIVE_ORDER))
-                                .map(pu -> {
+                                .map((ProjectUser pu) -> {
                                         Long memberId = pu.getUser().getId();
-                                        BigDecimal hours = calculateMemberCapacity(
+                                        CapacityCalculation calculation = calculateMemberCapacity(
                                                         pu,
                                                         start,
                                                         end,
                                                         projectHolidays,
                                                         memberAvailability.getOrDefault(memberId, Map.of()),
                                                         workingHourHistory);
+                                        BigDecimal hours = calculation.getCapacityHours();
 
                                         SprintCapacity c = configured.get(memberId);
                                         BigDecimal points = c == null
@@ -648,9 +711,23 @@ public class SprintService {
                                         BigDecimal estimate = assigned.getOrDefault(
                                                         memberId, BigDecimal.ZERO);
                                         BigDecimal utilization = points.signum() == 0
-                                                        ? BigDecimal.ZERO
+                                                        ? null
                                                         : estimate.multiply(BigDecimal.valueOf(100))
-                                                                        .divide(points, 2, java.math.RoundingMode.HALF_UP);
+                                                                        .divide(points, 2,
+                                                                                        java.math.RoundingMode.HALF_UP);
+                                        BigDecimal remainingPoints = points.subtract(estimate);
+
+                                        String capacityStatus;
+                                        if (points.signum() <= 0) {
+                                                capacityStatus = "NOT_CONFIGURED";
+                                        } else if (remainingPoints.signum() < 0) {
+                                                capacityStatus = "OVERALLOCATED";
+                                        } else if (utilization != null
+                                                        && utilization.compareTo(BigDecimal.valueOf(80)) >= 0) {
+                                                capacityStatus = "HIGH";
+                                        } else {
+                                                capacityStatus = "HEALTHY";
+                                        }
 
                                         return SprintCapacityResponse.builder()
                                                         .id(c == null ? null : c.getId())
@@ -660,8 +737,17 @@ public class SprintService {
                                                         .userEmail(pu.getUser().getEmail())
                                                         .capacityPoints(points)
                                                         .capacityHours(hours)
+                                                        .baseCapacityHours(calculation.getBaseCapacityHours())
+                                                        .reducedCapacityHours(calculation.getReducedCapacityHours())
+                                                        .workingDays(calculation.getWorkingDays())
+                                                        .holidayDays(calculation.getHolidayDays())
+                                                        .halfDayDays(calculation.getHalfDayDays())
+                                                        .unavailableDays(calculation.getUnavailableDays())
+                                                        .weekendDays(calculation.getWeekendDays())
                                                         .assignedEstimate(estimate)
+                                                        .remainingCapacityPoints(remainingPoints)
                                                         .utilizationPercent(utilization)
+                                                        .capacityStatus(capacityStatus)
                                                         .build();
                                 })
                                 .toList();
@@ -702,10 +788,10 @@ public class SprintService {
                 return getCapacity(sprintId).stream()
                                 .filter(x -> x.getUserId().equals(request.getUserId()))
                                 .findFirst()
-                                .orElseThrow(() -> new RuntimeException("Capacity could not be calculated"));
+                                .orElseThrow(() -> new RuntimeException("Capacity could not be saved"));
         }
 
-        private BigDecimal calculateMemberCapacity(
+        private CapacityCalculation calculateMemberCapacity(
                         ProjectUser projectUser,
                         LocalDate start,
                         LocalDate end,
@@ -717,45 +803,159 @@ public class SprintService {
                                 ? start
                                 : projectUser.getCreatedAt().toLocalDate();
 
-                BigDecimal total = BigDecimal.ZERO;
+                BigDecimal baseCapacityHours = BigDecimal.ZERO;
+                BigDecimal capacityHours = BigDecimal.ZERO;
+                int holidayDays = 0;
+                int halfDayDays = 0;
+                int unavailableDays = 0;
+                int weekendDays = 0;
+                int workingDays = 0;
 
                 for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                         if (date.isBefore(joinDate)) {
                                 continue;
                         }
 
-                        // Saturday and Sunday are non-working days.
+                        // Standard capacity planning treats Saturday/Sunday as non-working days.
                         if (date.getDayOfWeek().getValue() >= 6) {
-                                continue;
-                        }
-
-                        // A project-wide holiday applies to every member.
-                        if (projectHolidays.containsKey(date)) {
+                                weekendDays++;
                                 continue;
                         }
 
                         BigDecimal dayHours = effectiveWorkingHours(workingHourHistory, date);
-                        MemberAvailability entry = memberEntries.get(date);
+                        baseCapacityHours = baseCapacityHours.add(dayHours);
+                        workingDays++;
 
-                        if (entry == null) {
-                                total = total.add(dayHours);
+                        // Project-wide holiday/leave counts only when it was planned
+                        // before the sprint started.
+                        MemberAvailability projectEntry = projectHolidays.get(date);
+                        if (isPrePlannedLeave(projectEntry, start)) {
+                                holidayDays++;
                                 continue;
                         }
 
-                        switch (entry.getAvailabilityType()) {
-                                case HOLIDAY, UNAVAILABLE -> {
-                                        // 0 hours
+                        MemberAvailability entry = memberEntries.get(date);
+
+                        // Member leave/off counts only when it was planned before
+                        // the sprint started.
+                        if (isPrePlannedLeave(entry, start)) {
+                                if (entry.getAvailabilityType() == MemberAvailabilityType.HOLIDAY) {
+                                        holidayDays++;
+                                } else {
+                                        unavailableDays++;
                                 }
-                                case HALF_DAY -> total = total.add(
-                                                dayHours.divide(BigDecimal.valueOf(2), 2, java.math.RoundingMode.HALF_UP));
-                                case AVAILABLE -> total = total.add(
-                                                entry.getAvailableHours() == null
-                                                                ? dayHours
-                                                                : entry.getAvailableHours().max(BigDecimal.ZERO));
+                                continue;
+                        }
+
+                        // HALF_DAY is a working day but contributes half the hours.
+                        if (entry != null && entry.getAvailabilityType() == MemberAvailabilityType.HALF_DAY) {
+                                halfDayDays++;
+                                capacityHours = capacityHours.add(
+                                                dayHours.divide(BigDecimal.valueOf(2), 2,
+                                                                java.math.RoundingMode.HALF_UP));
+                        } else if (entry != null
+                                        && entry.getAvailabilityType() == MemberAvailabilityType.AVAILABLE
+                                        && entry.getAvailableHours() != null) {
+                                capacityHours = capacityHours.add(
+                                                entry.getAvailableHours()
+                                                                .max(BigDecimal.ZERO)
+                                                                .min(dayHours));
+                        } else {
+                                capacityHours = capacityHours.add(dayHours);
                         }
                 }
 
-                return total.setScale(2, java.math.RoundingMode.HALF_UP);
+                BigDecimal reducedCapacityHours = baseCapacityHours
+                                .subtract(capacityHours)
+                                .max(BigDecimal.ZERO)
+                                .setScale(2, java.math.RoundingMode.HALF_UP);
+
+                return new CapacityCalculation(
+                                capacityHours.setScale(2, java.math.RoundingMode.HALF_UP),
+                                baseCapacityHours.setScale(2, java.math.RoundingMode.HALF_UP),
+                                reducedCapacityHours,
+                                workingDays,
+                                holidayDays,
+                                halfDayDays,
+                                unavailableDays,
+                                weekendDays);
+        }
+
+        private boolean isPrePlannedLeave(MemberAvailability entry, LocalDate sprintStart) {
+                if (entry == null || entry.getAvailabilityType() == null) {
+                        return false;
+                }
+
+                if (entry.getAvailabilityType() != MemberAvailabilityType.HOLIDAY
+                                && entry.getAvailabilityType() != MemberAvailabilityType.UNAVAILABLE) {
+                        return false;
+                }
+
+                // Only leave that existed before the sprint started is planned leave.
+                return entry.getCreatedAt() != null
+                                && entry.getCreatedAt().toLocalDate().isBefore(sprintStart);
+        }
+
+        private static class CapacityCalculation {
+                private final BigDecimal capacityHours;
+                private final BigDecimal baseCapacityHours;
+                private final BigDecimal reducedCapacityHours;
+                private final int workingDays;
+                private final int holidayDays;
+                private final int halfDayDays;
+                private final int unavailableDays;
+                private final int weekendDays;
+
+                CapacityCalculation(
+                                BigDecimal capacityHours,
+                                BigDecimal baseCapacityHours,
+                                BigDecimal reducedCapacityHours,
+                                int workingDays,
+                                int holidayDays,
+                                int halfDayDays,
+                                int unavailableDays,
+                                int weekendDays) {
+                        this.capacityHours = capacityHours;
+                        this.baseCapacityHours = baseCapacityHours;
+                        this.reducedCapacityHours = reducedCapacityHours;
+                        this.workingDays = workingDays;
+                        this.holidayDays = holidayDays;
+                        this.halfDayDays = halfDayDays;
+                        this.unavailableDays = unavailableDays;
+                        this.weekendDays = weekendDays;
+                }
+
+                public BigDecimal getCapacityHours() {
+                        return capacityHours;
+                }
+
+                public BigDecimal getBaseCapacityHours() {
+                        return baseCapacityHours;
+                }
+
+                public BigDecimal getReducedCapacityHours() {
+                        return reducedCapacityHours;
+                }
+
+                public int getWorkingDays() {
+                        return workingDays;
+                }
+
+                public int getHolidayDays() {
+                        return holidayDays;
+                }
+
+                public int getHalfDayDays() {
+                        return halfDayDays;
+                }
+
+                public int getUnavailableDays() {
+                        return unavailableDays;
+                }
+
+                public int getWeekendDays() {
+                        return weekendDays;
+                }
         }
 
         private BigDecimal effectiveWorkingHours(
@@ -773,17 +973,30 @@ public class SprintService {
         }
 
         private SprintHistoryResponse historyRow(Sprint sprint) {
-                List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(sprint.getId());
-                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal completed = snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE).map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal pct = committed.signum() == 0 ? BigDecimal.ZERO : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2, java.math.RoundingMode.HALF_UP);
-                return SprintHistoryResponse.builder().sprintId(sprint.getId()).sprintName(sprint.getName()).status(sprint.getStatus())
-                                .startDate(sprint.getStartDate()).endDate(sprint.getEndDate()).committedTickets((long)snapshots.size())
-                                .completedTickets(snapshots.stream().filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE).count())
-                                .committedEstimate(committed).completedEstimate(completed).completionPercent(pct).build();
+                List<SprintIssueSnapshot> snapshots = snapshotRepository
+                                .findBySprintIdOrderByTicketIdAsc(sprint.getId());
+                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO,
+                                BigDecimal::add);
+                BigDecimal completed = snapshots.stream()
+                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                .map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal pct = committed.signum() == 0 ? BigDecimal.ZERO
+                                : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2,
+                                                java.math.RoundingMode.HALF_UP);
+                return SprintHistoryResponse.builder().sprintId(sprint.getId()).sprintName(sprint.getName())
+                                .status(sprint.getStatus())
+                                .startDate(sprint.getStartDate()).endDate(sprint.getEndDate())
+                                .committedTickets((long) snapshots.size())
+                                .completedTickets(snapshots.stream()
+                                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                .count())
+                                .committedEstimate(committed).completedEstimate(completed).completionPercent(pct)
+                                .build();
         }
 
-        private BigDecimal nz(BigDecimal value) { return value == null ? BigDecimal.ZERO : value; }
+        private BigDecimal nz(BigDecimal value) {
+                return value == null ? BigDecimal.ZERO : value;
+        }
 
         // =========================================================
         // HELPERS

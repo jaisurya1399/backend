@@ -24,4 +24,6 @@ public class SprintStatisticsResponse {
     private BigDecimal completedEstimation;
 
     private BigDecimal remainingEstimation;
+
+    private BigDecimal completionPercent;
 }

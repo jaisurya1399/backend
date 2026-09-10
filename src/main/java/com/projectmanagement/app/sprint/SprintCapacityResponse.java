@@ -34,5 +34,15 @@ public class SprintCapacityResponse {
     private int weekendDays;
 
     private BigDecimal assignedEstimate;
+
+    /**
+     * Story points still available after assigned work. Negative means overload.
+     */
+    private BigDecimal remainingCapacityPoints;
+
+    /** HEALTHY, HIGH, OVERALLOCATED or NOT_CONFIGURED. */
+    private String capacityStatus;
+
+    /** Null when no story-point capacity has been configured. */
     private BigDecimal utilizationPercent;
 }
