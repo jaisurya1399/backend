@@ -230,6 +230,13 @@ public class TicketController {
                                 ticketService.update(id, request));
         }
 
+        @PostMapping("/{id:\\d+}/remind-assignee")
+        @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
+        public ResponseEntity<Void> remindAssignee(@PathVariable Long id) {
+                ticketService.remindAssignee(id);
+                return ResponseEntity.noContent().build();
+        }
+
         @PutMapping("/{id:\\d+}/transition")
         @PreAuthorize("hasAuthority('ticket.update') or hasRole('ADMIN')")
         public ResponseEntity<TicketResponse> transition(

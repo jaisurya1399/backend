@@ -579,6 +579,7 @@ public class TicketService {
                                 .content(request.getContent())
                                 .owner(owner)
                                 .responsible(responsible)
+                                .dueDate(request.getDueDate())
                                 .status(status)
                                 .resolvedAt(isTerminalStatus(status) ? LocalDateTime.now() : null)
                                 .project(project)
@@ -723,6 +724,16 @@ public class TicketService {
                 ticket.setContent(request.getContent());
                 ticket.setOwner(owner);
                 ticket.setResponsible(responsible);
+                if (!java.util.Objects.equals(ticket.getDueDate(), request.getDueDate())
+                                || (oldStatus != null && oldStatus.getCategory() != null
+                                                && (oldStatus.getCategory() == TicketStatusCategory.DONE
+                                                                || oldStatus.getCategory() == TicketStatusCategory.CANCELLED)
+                                                && status.getCategory() != null
+                                                && status.getCategory() != TicketStatusCategory.DONE
+                                                && status.getCategory() != TicketStatusCategory.CANCELLED)) {
+                        ticket.setOverdueNotifiedAt(null);
+                }
+                ticket.setDueDate(request.getDueDate());
                 ticket.setStatus(status);
                 applyStatusChange(ticket, oldStatus, status);
                 ticket.setProject(project);
@@ -1103,6 +1114,21 @@ public class TicketService {
         // ENTITY -> RESPONSE
         // ============================================================
 
+        public void remindAssignee(Long id) {
+                Ticket ticket = ticketRepository.findById(id)
+                                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
+
+                projectAccessService.requireManager(ticket.getProject());
+
+                if (ticket.getResponsible() == null) {
+                        throw new RuntimeException("This task has no assigned person");
+                }
+
+                ticketNotificationService.notifyManualReminder(
+                                ticket,
+                                currentUserService.getCurrentUser());
+        }
+
         private TicketResponse toResponse(
                         Ticket ticket) {
 
@@ -1253,6 +1279,8 @@ public class TicketService {
 
                                 .deletedAt(ticket.getDeletedAt())
                                 .resolvedAt(ticket.getResolvedAt())
+                                .dueDate(ticket.getDueDate())
+                                .overdueNotifiedAt(ticket.getOverdueNotifiedAt())
                                 .createdAt(ticket.getCreatedAt())
                                 .updatedAt(ticket.getUpdatedAt())
 

@@ -84,6 +84,9 @@ public class TicketResponse {
 
     private LocalDateTime resolvedAt;
 
+    private LocalDateTime dueDate;
+    private LocalDateTime overdueNotifiedAt;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

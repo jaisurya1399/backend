@@ -1,6 +1,7 @@
 package com.projectmanagement.app.ticket;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,6 +38,8 @@ public class TicketRequest {
 
     @Positive(message = "Responsible ID must be positive")
     private Long responsibleId;
+
+    private LocalDateTime dueDate;
 
     @NotNull(message = "Status ID is required")
     @Positive(message = "Status ID must be positive")

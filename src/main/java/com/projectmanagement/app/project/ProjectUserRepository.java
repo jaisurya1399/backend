@@ -15,6 +15,10 @@ public interface ProjectUserRepository extends JpaRepository<ProjectUser, Long> 
                         Long projectId,
                         String role);
 
+        List<ProjectUser> findByProjectIdAndRoleIgnoreCase(
+                        Long projectId,
+                        String role);
+
         Optional<ProjectUser> findByProjectIdAndUserId(
                         Long projectId,
                         Long userId);

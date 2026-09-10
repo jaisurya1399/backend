@@ -169,6 +169,20 @@ public class Ticket {
     private Set<Label> labels = new HashSet<>();
 
     // =========================================================
+    // DUE DATE / OVERDUE TRACKING
+    // =========================================================
+
+    @Column(name = "due_date")
+    private LocalDateTime dueDate;
+
+    /**
+     * Set by the overdue scheduler after the project admins have been
+     * notified for the current due date. This prevents notification spam.
+     */
+    @Column(name = "overdue_notified_at")
+    private LocalDateTime overdueNotifiedAt;
+
+    // =========================================================
     // TIMESTAMPS
     // =========================================================
 
