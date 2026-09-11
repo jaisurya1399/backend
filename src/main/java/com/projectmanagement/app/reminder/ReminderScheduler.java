@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 public class ReminderScheduler {
     private final ReminderService service;
 
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelayString = "${app.scheduler.reminder.fixed-delay-ms:60000}")
     public void dispatch() {
         service.dispatchDueReminders();
     }

@@ -20,28 +20,28 @@ The names `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` are **not** wired in the main
 app properties. They are only used in the **test** profile
 (`src/test/resources/application-test.properties`).
 
-| Property | Local default | Env example | Purpose |
-| --- | --- | --- | --- |
-| `server.port` | `8080` | `SERVER_PORT` | HTTP port |
-| `spring.datasource.url` | `jdbc:postgresql://localhost:5432/pmt` | `SPRING_DATASOURCE_URL` | Postgres JDBC URL |
-| `spring.datasource.username` | `postgres` | `SPRING_DATASOURCE_USERNAME` | DB user |
-| `spring.datasource.password` | `12345` | `SPRING_DATASOURCE_PASSWORD` | DB password |
-| `jwt.secret` | committed HMAC key | `JWT_SECRET` | Access-token signing key (override outside local) |
-| `jwt.expiration` | `86400000` (24h, ms) | `JWT_EXPIRATION` | Access-token lifetime |
-| `jwt.issuer` | `project-management-api` | `JWT_ISSUER` | JWT issuer claim |
-| `auth.refresh-expiration-days` | `7` | `AUTH_REFRESH_EXPIRATION_DAYS` | Refresh-token lifetime |
-| `auth.password-reset-expiration-minutes` | `10` | `AUTH_PASSWORD_RESET_EXPIRATION_MINUTES` | Reset token lifetime |
-| `auth.email-verification-expiration-hours` | `24` | `AUTH_EMAIL_VERIFICATION_EXPIRATION_HOURS` | Email-verify token lifetime |
-| `auth.login.max-attempts` | `5` | `AUTH_LOGIN_MAX_ATTEMPTS` | Failed-login cap per window |
-| `auth.login.window-minutes` | `15` | `AUTH_LOGIN_WINDOW_MINUTES` | Login rate-limit window |
-| `app.cors.allowed-origins` | `http://localhost:5173,http://localhost:3000` | `APP_CORS_ALLOWED_ORIGINS` | Browser origins |
-| `app.frontend-url` | `http://localhost:5173` | `APP_FRONTEND_URL` | Links in mail templates |
-| `app.mail.enabled` | `false` | `APP_MAIL_ENABLED` | SMTP for reset/verify/ticket mail |
-| `app.mail.from` | `no-reply@projectmanagement.local` | `APP_MAIL_FROM` | From address |
-| `app.notification.email.enabled` | `false` | `APP_NOTIFICATION_EMAIL_ENABLED` | Ticket notification emails |
-| `app.notification.web-push.enabled` | `false` | `APP_NOTIFICATION_WEB_PUSH_ENABLED` | Browser push |
-| `app.security.trust-forwarded-headers` | `false` | `APP_SECURITY_TRUST_FORWARDED_HEADERS` | Trust `X-Forwarded-For` only behind a proxy |
-| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | empty / mailto default | same | Required when web push is enabled |
+| Property                                                   | Local default                                           | Env example                                | Purpose                                           |
+| ---------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `server.port`                                              | `8080`                                                  | `SERVER_PORT`                              | HTTP port                                         |
+| `spring.datasource.url`                                    | `jdbc:postgresql://10.180.102.238:5432/pmt`             | `SPRING_DATASOURCE_URL`                    | Postgres JDBC URL                                 |
+| `spring.datasource.username`                               | `postgres`                                              | `SPRING_DATASOURCE_USERNAME`               | DB user                                           |
+| `spring.datasource.password`                               | `12345`                                                 | `SPRING_DATASOURCE_PASSWORD`               | DB password                                       |
+| `jwt.secret`                                               | committed HMAC key                                      | `JWT_SECRET`                               | Access-token signing key (override outside local) |
+| `jwt.expiration`                                           | `86400000` (24h, ms)                                    | `JWT_EXPIRATION`                           | Access-token lifetime                             |
+| `jwt.issuer`                                               | `project-management-api`                                | `JWT_ISSUER`                               | JWT issuer claim                                  |
+| `auth.refresh-expiration-days`                             | `7`                                                     | `AUTH_REFRESH_EXPIRATION_DAYS`             | Refresh-token lifetime                            |
+| `auth.password-reset-expiration-minutes`                   | `10`                                                    | `AUTH_PASSWORD_RESET_EXPIRATION_MINUTES`   | Reset token lifetime                              |
+| `auth.email-verification-expiration-hours`                 | `24`                                                    | `AUTH_EMAIL_VERIFICATION_EXPIRATION_HOURS` | Email-verify token lifetime                       |
+| `auth.login.max-attempts`                                  | `5`                                                     | `AUTH_LOGIN_MAX_ATTEMPTS`                  | Failed-login cap per window                       |
+| `auth.login.window-minutes`                                | `15`                                                    | `AUTH_LOGIN_WINDOW_MINUTES`                | Login rate-limit window                           |
+| `app.cors.allowed-origins`                                 | `http://10.180.102.238:5173,http://10.180.102.238:3000` | `APP_CORS_ALLOWED_ORIGINS`                 | Browser origins                                   |
+| `app.frontend-url`                                         | `http://10.180.102.238:5173`                            | `APP_FRONTEND_URL`                         | Links in mail templates                           |
+| `app.mail.enabled`                                         | `false`                                                 | `APP_MAIL_ENABLED`                         | SMTP for reset/verify/ticket mail                 |
+| `app.mail.from`                                            | `no-reply@projectmanagement.local`                      | `APP_MAIL_FROM`                            | From address                                      |
+| `app.notification.email.enabled`                           | `false`                                                 | `APP_NOTIFICATION_EMAIL_ENABLED`           | Ticket notification emails                        |
+| `app.notification.web-push.enabled`                        | `false`                                                 | `APP_NOTIFICATION_WEB_PUSH_ENABLED`        | Browser push                                      |
+| `app.security.trust-forwarded-headers`                     | `false`                                                 | `APP_SECURITY_TRUST_FORWARDED_HEADERS`     | Trust `X-Forwarded-For` only behind a proxy       |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | empty / mailto default                                  | same                                       | Required when web push is enabled                 |
 
 Profiles:
 
@@ -142,3 +142,20 @@ email-verification confirm, and `GET /api/web-push/vapid-public-key`.
 Everything else needs `Authorization: Bearer <accessToken>`.
 
 Full route list, error body, mail, and push setup: [API.md](API.md).
+
+## LAN / SAME-NETWORK ACCESS
+
+This project is configured so the PC running both Spring Boot and Vite can be accessed from another PC on the same LAN.
+
+1. Put the PC's LAN IPv4 address in `backend/.env`:
+   - `APP_FRONTEND_URL=http://<LAN_IP>:5173`
+   - `APP_CORS_ALLOWED_ORIGINS=http://<LAN_IP>:5173,http://localhost:5173,http://127.0.0.1:5173`
+2. Put the same LAN IP in `frontend/.env`:
+   - `VITE_API_BASE_URL=http://<LAN_IP>:8080/api`
+3. Start the backend normally. `SERVER_ADDRESS=0.0.0.0` makes it listen on the LAN interface.
+4. Start the frontend with `npm run dev`. Vite reads `VITE_DEV_HOST=0.0.0.0`.
+5. From another PC on the same network open `http://<LAN_IP>:5173`.
+6. If Windows Firewall blocks access, allow inbound TCP ports `5173` and `8080`.
+
+All runtime configuration is centralized in `application.properties` + backend `.env`, and frontend `.env`. Do not commit real `.env` files.
+

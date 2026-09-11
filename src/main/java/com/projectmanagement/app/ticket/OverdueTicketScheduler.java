@@ -21,7 +21,7 @@ public class OverdueTicketScheduler {
      * Checks every 5 minutes. Each overdue ticket is notified only once
      * until its due date is changed, completed, or otherwise resolved.
      */
-    @Scheduled(fixedDelay = 300000)
+    @Scheduled(fixedDelayString = "${app.scheduler.overdue-ticket.fixed-delay-ms:300000}")
     @Transactional
     public void notifyOverdueTickets() {
         for (Ticket ticket : ticketRepository.findOverdueNotYetNotified(LocalDateTime.now())) {
