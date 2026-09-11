@@ -95,6 +95,43 @@ public class DocumentController {
                                 HttpStatus.OK);
         }
 
+        /**
+         * View document inline in the browser.
+         *
+         * Used by the UI eye/preview action. The download endpoint intentionally
+         * keeps Content-Disposition=attachment; this endpoint uses inline so
+         * browser-supported files such as PDF and images can be previewed.
+         */
+        @GetMapping("/{id}/view")
+        @PreAuthorize("hasAuthority('document.view') or hasRole('ADMIN')")
+        public ResponseEntity<byte[]> view(
+                        @PathVariable @Positive Long id) {
+
+                Document document = documentService.getEntity(id);
+
+                MediaType mediaType;
+
+                try {
+                        mediaType = MediaType.parseMediaType(
+                                        document.getContentType());
+                } catch (Exception exception) {
+                        mediaType = MediaType.APPLICATION_OCTET_STREAM;
+                }
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(mediaType);
+                headers.setContentDisposition(
+                                ContentDisposition.inline()
+                                                .filename(document.getOriginalName())
+                                                .build());
+                headers.setContentLength(document.getFileSize());
+
+                return new ResponseEntity<>(
+                                document.getFileData(),
+                                headers,
+                                HttpStatus.OK);
+        }
+
         @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
         @PreAuthorize("hasAuthority('document.create') or hasRole('ADMIN')")
         public ResponseEntity<DocumentResponse> create(
