@@ -80,6 +80,47 @@ public class ProjectAccessService {
                 .orElse(null);
     }
 
+    /**
+     * Returns true when the current user is a project MEMBER whose responsibility
+     * is Developer. Developer visibility remains project-wide, but ticket edits
+     * are restricted to tickets assigned to the current user.
+     */
+    public boolean isDeveloper(Project project) {
+        if (project == null || isSystemAdmin())
+            return false;
+
+        return "DEVELOPER".equalsIgnoreCase(getCurrentMemberResponsibility(project));
+    }
+
+    /**
+     * Developer-specific ticket edit rule. The caller must already have the
+     * normal ticket.update authority; this method adds the ownership constraint.
+     */
+    public void requireDeveloperAssignment(Project project, Long responsibleUserId) {
+        if (!isDeveloper(project))
+            return;
+
+        Long currentUserId = currentUserService.getCurrentUserId();
+        if (currentUserId == null || responsibleUserId == null
+                || !currentUserId.equals(responsibleUserId)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Developers can edit only tickets assigned to themselves");
+        }
+    }
+
+    /**
+     * Developer users are not allowed to perform project-wide board planning
+     * operations. Project Admins and other permitted project editors retain the
+     * existing behavior.
+     */
+    public void requireBoardPlanningAccess(Project project) {
+        requireEditor(project);
+        if (isDeveloper(project)) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Developers cannot perform project-wide board planning");
+        }
+    }
+
     public boolean canEdit(Project project) {
         if (project == null || project.getArchivedAt() != null)
             return isSystemAdmin();

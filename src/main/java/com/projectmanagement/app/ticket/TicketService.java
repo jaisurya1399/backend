@@ -614,6 +614,11 @@ public class TicketService {
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
                 projectAccessService.requireEditor(ticket.getProject());
+                // Developers can view every ticket on the project board, but they may
+                // edit only tickets currently assigned to themselves.
+                projectAccessService.requireDeveloperAssignment(
+                                ticket.getProject(),
+                                ticket.getResponsible() == null ? null : ticket.getResponsible().getId());
                 if (request.getSecurityLevel() != null && !projectAccessService.canManage(ticket.getProject()))
                         throw new RuntimeException("Only project admins can change issue security");
 
@@ -642,6 +647,20 @@ public class TicketService {
                                         .orElseThrow(() -> new RuntimeException(
                                                         "Responsible user not found with id: "
                                                                         + request.getResponsibleId()));
+                }
+
+                if (projectAccessService.isDeveloper(ticket.getProject())) {
+                        Long currentUserId = currentUserService.getCurrentUserId();
+                        if (ticket.getResponsible() == null || currentUserId == null
+                                        || !currentUserId.equals(ticket.getResponsible().getId())) {
+                                throw new org.springframework.security.access.AccessDeniedException(
+                                                "Developers can edit only tickets assigned to themselves");
+                        }
+                        if (request.getResponsibleId() == null
+                                        || !currentUserId.equals(request.getResponsibleId())) {
+                                throw new org.springframework.security.access.AccessDeniedException(
+                                                "Developers cannot reassign their tickets");
+                        }
                 }
 
                 TicketStatus status = ticketStatusRepository
@@ -750,6 +769,9 @@ public class TicketService {
                 Ticket ticket = ticketRepository.findById(id)
                                 .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + id));
                 projectAccessService.requireEditor(ticket.getProject());
+                projectAccessService.requireDeveloperAssignment(
+                                ticket.getProject(),
+                                ticket.getResponsible() == null ? null : ticket.getResponsible().getId());
                 TicketStatus status = ticketStatusRepository.findById(request.getStatusId())
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket status not found with id: " + request.getStatusId()));
@@ -778,7 +800,7 @@ public class TicketService {
          */
         public List<TicketResponse> plan(Long projectId, TicketPlanningRequest request) {
                 Project project = getProject(projectId);
-                projectAccessService.requireEditor(project);
+                projectAccessService.requireBoardPlanningAccess(project);
                 if (new HashSet<>(request.getTicketIds()).size() != request.getTicketIds().size())
                         throw new RuntimeException("Ticket IDs must not contain duplicates");
                 if (request.getSprintId() != null && Boolean.TRUE.equals(request.getMoveToBacklog()))
