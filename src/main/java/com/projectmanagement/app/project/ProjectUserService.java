@@ -5,9 +5,14 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.projectmanagement.app.audit.AuditService;
+import com.projectmanagement.app.role.Role;
+import com.projectmanagement.app.role.RoleRepository;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
-import com.projectmanagement.app.audit.AuditService;
+import com.projectmanagement.app.userrole.UserRole;
+import com.projectmanagement.app.userrole.UserRoleId;
+import com.projectmanagement.app.userrole.UserRoleRepository;
 
 @Service
 @Transactional
@@ -18,19 +23,25 @@ public class ProjectUserService {
         private final ProjectRepository projectRepository;
         private final ProjectAccessService projectAccessService;
         private final AuditService auditService;
+        private final RoleRepository roleRepository;
+        private final UserRoleRepository userRoleRepository;
 
         public ProjectUserService(
                         ProjectUserRepository projectUserRepository,
                         ProjectRepository projectRepository,
                         UserRepository userRepository,
                         ProjectAccessService projectAccessService,
-                        AuditService auditService) {
+                        AuditService auditService,
+                        RoleRepository roleRepository,
+                        UserRoleRepository userRoleRepository) {
 
                 this.projectUserRepository = projectUserRepository;
                 this.projectRepository = projectRepository;
                 this.userRepository = userRepository;
                 this.projectAccessService = projectAccessService;
                 this.auditService = auditService;
+                this.roleRepository = roleRepository;
+                this.userRoleRepository = userRoleRepository;
         }
 
         // -------------------------------------------------------------------------
@@ -149,9 +160,11 @@ public class ProjectUserService {
                                 .build();
 
                 ProjectUser saved = projectUserRepository.save(projectUser);
+                syncApplicationRoleForUser(user.getId());
                 auditService.record(project, null, "PROJECT_MEMBER_ADDED", "PROJECT_USER", saved.getId(),
                                 java.util.Map.of("userId", user.getId(), "role", saved.getRole(),
-                                                "responsibilityRole", saved.getResponsibilityRole() == null ? "" : saved.getResponsibilityRole()));
+                                                "responsibilityRole", saved.getResponsibilityRole() == null ? ""
+                                                                : saved.getResponsibilityRole()));
                 return toResponse(saved);
         }
 
@@ -170,6 +183,7 @@ public class ProjectUserService {
                                                 "Project user not found with id: " + id));
 
                 Project oldProject = projectUser.getProject();
+                Long oldUserId = projectUser.getUser() != null ? projectUser.getUser().getId() : null;
 
                 projectAccessService.requireManager(oldProject);
 
@@ -220,9 +234,14 @@ public class ProjectUserService {
                 }
 
                 ProjectUser saved = projectUserRepository.save(projectUser);
+                if (oldUserId != null && !oldUserId.equals(saved.getUser().getId())) {
+                        syncApplicationRoleForUser(oldUserId);
+                }
+                syncApplicationRoleForUser(saved.getUser().getId());
                 auditService.record(newProject, null, "PROJECT_MEMBER_UPDATED", "PROJECT_USER", saved.getId(),
                                 java.util.Map.of("userId", saved.getUser().getId(), "role", saved.getRole(),
-                                                "responsibilityRole", saved.getResponsibilityRole() == null ? "" : saved.getResponsibilityRole()));
+                                                "responsibilityRole", saved.getResponsibilityRole() == null ? ""
+                                                                : saved.getResponsibilityRole()));
                 return toResponse(saved);
         }
 
@@ -304,9 +323,15 @@ public class ProjectUserService {
                 projectAccessService.requireManager(
                                 projectUser.getProject());
 
-                auditService.record(projectUser.getProject(), null, "PROJECT_MEMBER_REMOVED", "PROJECT_USER", projectUser.getId(),
-                                java.util.Map.of("userId", projectUser.getUser().getId(), "role", projectUser.getRole()));
+                Long userId = projectUser.getUser() != null ? projectUser.getUser().getId() : null;
+                auditService.record(projectUser.getProject(), null, "PROJECT_MEMBER_REMOVED", "PROJECT_USER",
+                                projectUser.getId(),
+                                java.util.Map.of("userId", projectUser.getUser().getId(), "role",
+                                                projectUser.getRole()));
                 projectUserRepository.delete(projectUser);
+                if (userId != null) {
+                        syncApplicationRoleForUser(userId);
+                }
         }
 
         public void deleteProjectUsersByProject(
@@ -316,7 +341,16 @@ public class ProjectUserService {
 
                 projectAccessService.requireManager(project);
 
+                List<Long> affectedUserIds = projectUserRepository.findByProjectId(projectId)
+                                .stream()
+                                .map(ProjectUser::getUser)
+                                .filter(java.util.Objects::nonNull)
+                                .map(User::getId)
+                                .distinct()
+                                .toList();
+
                 projectUserRepository.deleteByProjectId(projectId);
+                affectedUserIds.forEach(this::syncApplicationRoleForUser);
         }
 
         public void deleteProjectUsersByUser(Long userId) {
@@ -328,6 +362,7 @@ public class ProjectUserService {
                  * controller/global permission.
                  */
                 projectUserRepository.deleteByUserId(userId);
+                syncApplicationRoleForUser(userId);
         }
 
         // -------------------------------------------------------------------------
@@ -350,6 +385,62 @@ public class ProjectUserService {
                 validateUser(userId);
 
                 return projectUserRepository.countByUserId(userId);
+        }
+
+        // -------------------------------------------------------------------------
+        // APPLICATION ROLE SYNCHRONIZATION
+        // -------------------------------------------------------------------------
+
+        /**
+         * Synchronizes project MEMBER responsibilities with matching application
+         * roles. ADMIN and other unrelated system roles are never touched.
+         * A role is kept while at least one project membership still requires it.
+         */
+        private void syncApplicationRoleForUser(Long userId) {
+                if (userId == null) {
+                        return;
+                }
+
+                java.util.Set<String> desired = projectUserRepository.findByUserId(userId)
+                                .stream()
+                                .filter(java.util.Objects::nonNull)
+                                .filter(p -> ProjectRole.MEMBER.name().equalsIgnoreCase(p.getRole()))
+                                .map(ProjectUser::getResponsibilityRole)
+                                .filter(r -> r != null && !r.isBlank())
+                                .map(r -> r.trim().toUpperCase())
+                                .collect(java.util.stream.Collectors.toSet());
+
+                java.util.Set<String> managed = java.util.Arrays.stream(MemberResponsibility.values())
+                                .map(Enum::name)
+                                .collect(java.util.stream.Collectors.toSet());
+
+                for (Role role : roleRepository.findAll()) {
+                        if (role == null || role.getName() == null) {
+                                continue;
+                        }
+
+                        String roleName = role.getName().trim().toUpperCase();
+                        if (!managed.contains(roleName)) {
+                                continue;
+                        }
+
+                        boolean shouldHave = desired.contains(roleName);
+                        boolean has = userRoleRepository.existsByUserIdAndRoleId(userId, role.getId());
+
+                        if (shouldHave && !has) {
+                                User user = getUser(userId);
+                                UserRoleId id = new UserRoleId(role.getId(), userId, UserRole.USER_MODEL_TYPE);
+                                userRoleRepository.save(UserRole.builder()
+                                                .id(id)
+                                                .user(user)
+                                                .role(role)
+                                                .modelType(UserRole.USER_MODEL_TYPE)
+                                                .build());
+                        } else if (!shouldHave && has) {
+                                userRoleRepository.findByUserIdAndRoleId(userId, role.getId())
+                                                .ifPresent(userRoleRepository::delete);
+                        }
+                }
         }
 
         // -------------------------------------------------------------------------
