@@ -17,14 +17,17 @@ public class SmtpPasswordResetDeliveryService implements PasswordResetDeliverySe
     private final JavaMailSender mailSender;
     private final String from;
     private final String frontendUrl;
+    private final long expirationMinutes;
 
     public SmtpPasswordResetDeliveryService(
             JavaMailSender mailSender,
-            @Value("${app.mail.from}") String from,
-            @Value("${app.frontend-url}") String frontendUrl) {
+            @Value("${app.mail.from:${spring.mail.username:no-reply@localhost}}") String from,
+            @Value("${app.frontend-url:http://localhost:5173}") String frontendUrl,
+            @Value("${auth.password-reset-expiration-minutes:10}") long expirationMinutes) {
         this.mailSender = mailSender;
         this.from = from;
         this.frontendUrl = frontendUrl;
+        this.expirationMinutes = expirationMinutes;
     }
 
     @Override
@@ -35,7 +38,7 @@ public class SmtpPasswordResetDeliveryService implements PasswordResetDeliverySe
         message.setFrom(from);
         message.setTo(user.getEmail());
         message.setSubject("Reset your password");
-        message.setText("Use this link to reset your password. It expires in 30 minutes:\n" + resetUrl);
+        message.setText("Use this link to reset your Planora password. It expires in " + expirationMinutes + " minutes:\n\n" + resetUrl + "\n\nIf you did not request this, you can safely ignore this email.");
         mailSender.send(message);
     }
 }

@@ -338,23 +338,52 @@ public class AuthService {
                 .mfaEnabled(isMfaEnabled(user.getEmail())).build();
     }
 
+    /**
+     * Starts the password-reset flow for a registered user.
+     * The controller intentionally returns 204 for both existing and
+     * non-existing addresses to avoid account enumeration.
+     */
     @Transactional
     public void requestPasswordReset(PasswordResetRequest request) {
-        userRepository.findByEmail(request.getEmail().trim().toLowerCase()).filter(user -> user.getDeletedAt() == null)
+        String email = request.getEmail() == null
+                ? ""
+                : request.getEmail().trim().toLowerCase();
+
+        if (email.isBlank()) {
+            return;
+        }
+
+        userRepository.findByEmail(email)
+                .filter(user -> user.getDeletedAt() == null)
                 .ifPresent(user -> {
                     LocalDateTime now = LocalDateTime.now();
+
+                    // Invalidate previous unused reset links.
                     passwordResetTokenRepository.findByUserIdAndUsedAtIsNull(user.getId())
                             .forEach(token -> token.setUsedAt(now));
+
                     String rawToken = randomToken();
-                    passwordResetTokenRepository.save(PasswordResetToken.builder().user(user).tokenHash(hash(rawToken))
-                            .expiresAt(now.plusMinutes(passwordResetExpirationMinutes)).build());
+
+                    passwordResetTokenRepository.save(
+                            PasswordResetToken.builder()
+                                    .user(user)
+                                    .tokenHash(hash(rawToken))
+                                    .expiresAt(now.plusMinutes(passwordResetExpirationMinutes))
+                                    .build());
+
+                    // Never log the raw token.
                     passwordResetDeliveryService.deliver(user, rawToken);
                 });
     }
 
     @Transactional
     public void confirmPasswordReset(PasswordResetConfirmRequest request) {
-        PasswordResetToken token = passwordResetTokenRepository.findByTokenHash(hash(request.getToken()))
+        if (request.getToken() == null || request.getToken().isBlank()) {
+            throw new RuntimeException("Invalid or expired password reset token");
+        }
+
+        PasswordResetToken token = passwordResetTokenRepository
+                .findByTokenHash(hash(request.getToken().trim()))
                 .orElseThrow(() -> new RuntimeException("Invalid or expired password reset token"));
         if (token.getUsedAt() != null || !token.getExpiresAt().isAfter(LocalDateTime.now())
                 || token.getUser().getDeletedAt() != null)
