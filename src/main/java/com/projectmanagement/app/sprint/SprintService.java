@@ -452,11 +452,27 @@ public class SprintService {
                 ticket.setSprint(sprint);
                 ticket.setOrder(sprintTickets.size());
 
-                // IMPORTANT: do not create a commitment snapshot here.
-                // Snapshots represent the sprint-start baseline only. A ticket added
-                // after an ACTIVE sprint has started is current scope / added scope.
-                // If the sprint is PLANNED, start() will capture all tickets together.
-                return ticketService.toResponse(ticketRepository.save(ticket));
+                Ticket savedTicket = ticketRepository.save(ticket);
+
+                // Commitment is the set of issues that have actually been committed
+                // to the sprint. Therefore, when a ticket is moved from BACKLOG into
+                // an ACTIVE sprint, immediately create its commitment snapshot.
+                // For a PLANNED sprint, start() captures the complete sprint scope
+                // together, so no snapshot is created here.
+                if (sprint.getStatus() == SprintStatus.ACTIVE
+                                && !snapshotRepository.existsBySprintIdAndTicketId(sprintId, ticketId)) {
+                        snapshotRepository.save(SprintIssueSnapshot.builder()
+                                        .sprint(sprint)
+                                        .ticketId(savedTicket.getId())
+                                        .estimation(nz(savedTicket.getEstimation()))
+                                        .resolvedAt(savedTicket.getResolvedAt())
+                                        .finalStatusCategory(savedTicket.getStatus() == null
+                                                        ? TicketStatusCategory.TODO
+                                                        : savedTicket.getStatus().getCategory())
+                                        .build());
+                }
+
+                return ticketService.toResponse(savedTicket);
         }
 
         // =========================================================
@@ -475,6 +491,8 @@ public class SprintService {
                 }
 
                 ticket.setSprint(null);
+                snapshotRepository.findBySprintIdAndTicketId(sprintId, ticketId)
+                                .ifPresent(snapshotRepository::delete);
                 return ticketService.toResponse(ticketRepository.save(ticket));
         }
 
@@ -487,7 +505,12 @@ public class SprintService {
 
                 validateProjectAccess(ticket.getProject().getId(), userId);
 
+                Long previousSprintId = ticket.getSprint() == null ? null : ticket.getSprint().getId();
                 ticket.setSprint(null);
+                if (previousSprintId != null) {
+                        snapshotRepository.findBySprintIdAndTicketId(previousSprintId, ticketId)
+                                        .ifPresent(snapshotRepository::delete);
+                }
                 return ticketService.toResponse(ticketRepository.save(ticket));
         }
 

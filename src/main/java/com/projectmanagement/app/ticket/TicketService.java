@@ -38,6 +38,8 @@ import com.projectmanagement.app.securityscheme.IssueSecuritySchemeRepository;
 import com.projectmanagement.app.sprint.Sprint;
 import com.projectmanagement.app.sprint.SprintRepository;
 import com.projectmanagement.app.sprint.SprintStatus;
+import com.projectmanagement.app.sprint.SprintIssueSnapshot;
+import com.projectmanagement.app.sprint.SprintIssueSnapshotRepository;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
 import com.projectmanagement.app.workflow.WorkflowService;
@@ -66,6 +68,7 @@ public class TicketService {
         private final CustomFieldValueService customFieldValueService;
         private final WorkflowService workflowService;
         private final IssueSecuritySchemeRepository issueSecuritySchemes;
+        private final SprintIssueSnapshotRepository snapshotRepository;
 
         public TicketService(
                         TicketRepository ticketRepository,
@@ -87,7 +90,8 @@ public class TicketService {
                         BoardService boardService,
                         CustomFieldValueService customFieldValueService,
                         WorkflowService workflowService,
-                        IssueSecuritySchemeRepository issueSecuritySchemes) {
+                        IssueSecuritySchemeRepository issueSecuritySchemes,
+                        SprintIssueSnapshotRepository snapshotRepository) {
 
                 this.ticketRepository = ticketRepository;
                 this.projectRepository = projectRepository;
@@ -109,6 +113,7 @@ public class TicketService {
                 this.customFieldValueService = customFieldValueService;
                 this.workflowService = workflowService;
                 this.issueSecuritySchemes = issueSecuritySchemes;
+                this.snapshotRepository = snapshotRepository;
         }
 
         // ============================================================
@@ -593,6 +598,7 @@ public class TicketService {
                                 .build();
 
                 Ticket saved = ticketRepository.save(ticket);
+                syncSprintCommitment(null, saved);
                 customFieldValueService.replaceValues(saved, request.getCustomFields(), project.getId(), type.getId());
                 ticketNotificationService.notifyAssignment(saved, currentUserService.getCurrentUser());
                 auditService.record(project, saved, "TICKET_CREATED", "TICKET", saved.getId(), ticketSnapshot(saved));
@@ -613,6 +619,8 @@ public class TicketService {
                                 .findById(id)
                                 .orElseThrow(() -> new RuntimeException(
                                                 "Ticket not found with id: " + id));
+                Sprint previousSprint = ticket.getSprint();
+
                 projectAccessService.requireEditor(ticket.getProject());
                 // Developers can view every ticket on the project board, but they may
                 // edit only tickets currently assigned to themselves.
@@ -752,6 +760,7 @@ public class TicketService {
                         ticket.setSecurityLevel(request.getSecurityLevel());
 
                 Ticket updated = ticketRepository.save(ticket);
+                syncSprintCommitment(previousSprint, updated);
                 customFieldValueService.replaceValues(updated, request.getCustomFields(), project.getId(),
                                 type.getId());
                 if (responsible != null && (previousResponsible == null
@@ -823,12 +832,14 @@ public class TicketService {
                 }
 
                 List<Ticket> tickets = new ArrayList<>();
+                Map<Long, Sprint> previousSprints = new LinkedHashMap<>();
                 for (Long ticketId : request.getTicketIds()) {
                         Ticket ticket = ticketRepository.findById(ticketId)
                                         .filter(item -> item.getDeletedAt() == null)
                                         .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
                         if (!ticket.getProject().getId().equals(projectId))
                                 throw new RuntimeException("All tickets must belong to the selected project");
+                        previousSprints.put(ticketId, ticket.getSprint());
                         if (targetStatus != null) {
                                 TicketStatus oldStatus = ticket.getStatus();
                                 ticket.setStatus(targetStatus);
@@ -841,7 +852,11 @@ public class TicketService {
                         ticket.setOrder(tickets.size());
                         tickets.add(ticket);
                 }
-                return ticketRepository.saveAll(tickets).stream().map(this::toResponse).toList();
+                List<Ticket> savedTickets = ticketRepository.saveAll(tickets);
+                for (Ticket savedTicket : savedTickets) {
+                        syncSprintCommitment(previousSprints.get(savedTicket.getId()), savedTicket);
+                }
+                return savedTickets.stream().map(this::toResponse).toList();
         }
 
         // ============================================================
@@ -1052,6 +1067,34 @@ public class TicketService {
                                                 .user(currentUserService.getCurrentUser()).build());
                 ticketNotificationService.notifyStatusChange(ticket, currentUserService.getCurrentUser(), oldStatus,
                                 newStatus);
+        }
+
+        /**
+         * Keeps sprint_issue_snapshots aligned with the current committed sprint scope.
+         * ACTIVE sprint: add when entering, remove when leaving.
+         * PLANNED sprint: start() owns initial snapshot creation.
+         */
+        private void syncSprintCommitment(Sprint previousSprint, Ticket ticket) {
+                Sprint newSprint = ticket.getSprint();
+
+                if (previousSprint != null && !java.util.Objects.equals(
+                                previousSprint.getId(), newSprint == null ? null : newSprint.getId())) {
+                        snapshotRepository.findBySprintIdAndTicketId(previousSprint.getId(), ticket.getId())
+                                        .ifPresent(snapshotRepository::delete);
+                }
+
+                if (newSprint != null && newSprint.getStatus() == SprintStatus.ACTIVE
+                                && !snapshotRepository.existsBySprintIdAndTicketId(newSprint.getId(), ticket.getId())) {
+                        snapshotRepository.save(SprintIssueSnapshot.builder()
+                                        .sprint(newSprint)
+                                        .ticketId(ticket.getId())
+                                        .estimation(ticket.getEstimation() == null ? BigDecimal.ZERO : ticket.getEstimation())
+                                        .resolvedAt(ticket.getResolvedAt())
+                                        .finalStatusCategory(ticket.getStatus() == null
+                                                        ? TicketStatusCategory.TODO
+                                                        : ticket.getStatus().getCategory())
+                                        .build());
+                }
         }
 
         private Sprint resolveSprint(Long sprintId, Project project) {
