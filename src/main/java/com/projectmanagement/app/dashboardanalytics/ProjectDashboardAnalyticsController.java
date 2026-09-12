@@ -24,4 +24,9 @@ public class ProjectDashboardAnalyticsController {
             @RequestParam(defaultValue = "30") int days) {
         return ResponseEntity.ok(service.getAnalytics(projectId, days));
     }
+    @GetMapping("/{projectId}/member-analytics/{userId}")
+    public ResponseEntity<Map<String, Object>> getMember(@PathVariable Long projectId,
+            @PathVariable Long userId, @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(service.getMemberAnalytics(projectId, userId, days));
+    }
 }
