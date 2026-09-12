@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.projectmanagement.app.auth.CurrentUserService;
-import com.projectmanagement.app.ticket.Ticket;
+import com.projectmanagement.app.ticket.TicketResponse;
 
 import jakarta.validation.Valid;
 
@@ -192,7 +192,7 @@ public class SprintController {
         // =========================================================
 
         @GetMapping("/{id}/tickets")
-        public ResponseEntity<List<Ticket>> getSprintTickets(
+        public ResponseEntity<List<TicketResponse>> getSprintTickets(
                         @PathVariable Long id) {
 
                 return ResponseEntity.ok(
@@ -204,7 +204,7 @@ public class SprintController {
         // =========================================================
 
         @GetMapping("/project/{projectId}/backlog")
-        public ResponseEntity<List<Ticket>> getBacklog(
+        public ResponseEntity<List<TicketResponse>> getBacklog(
                         @PathVariable Long projectId) {
 
                 return ResponseEntity.ok(
@@ -217,7 +217,7 @@ public class SprintController {
         // =========================================================
 
         @PostMapping("/{sprintId}/tickets/{ticketId}")
-        public ResponseEntity<Ticket> addTicket(
+        public ResponseEntity<TicketResponse> addTicket(
                         @PathVariable Long sprintId,
                         @PathVariable Long ticketId,
                         Authentication authentication) {
@@ -236,7 +236,7 @@ public class SprintController {
         // =========================================================
 
         @DeleteMapping("/{sprintId}/tickets/{ticketId}")
-        public ResponseEntity<Ticket> removeTicket(
+        public ResponseEntity<TicketResponse> removeTicket(
                         @PathVariable Long sprintId,
                         @PathVariable Long ticketId,
                         Authentication authentication) {
@@ -255,7 +255,7 @@ public class SprintController {
         // =========================================================
 
         @PostMapping("/tickets/{ticketId}/backlog")
-        public ResponseEntity<Ticket> moveToBacklog(
+        public ResponseEntity<TicketResponse> moveToBacklog(
                         @PathVariable Long ticketId,
                         Authentication authentication) {
 

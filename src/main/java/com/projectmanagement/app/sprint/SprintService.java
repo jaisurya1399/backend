@@ -25,6 +25,8 @@ import com.projectmanagement.app.project.ProjectWorkingHours;
 import com.projectmanagement.app.project.ProjectWorkingHoursRepository;
 import com.projectmanagement.app.ticket.Ticket;
 import com.projectmanagement.app.ticket.TicketRepository;
+import com.projectmanagement.app.ticket.TicketResponse;
+import com.projectmanagement.app.ticket.TicketService;
 import com.projectmanagement.app.ticket.TicketStatusCategory;
 import com.projectmanagement.app.user.User;
 import com.projectmanagement.app.user.UserRepository;
@@ -43,6 +45,7 @@ public class SprintService {
         private final SprintCapacityRepository capacityRepository;
         private final MemberAvailabilityRepository availabilityRepository;
         private final ProjectWorkingHoursRepository workingHoursRepository;
+        private final TicketService ticketService;
 
         public SprintService(
                         SprintRepository sprintRepository,
@@ -54,7 +57,8 @@ public class SprintService {
                         SprintIssueSnapshotRepository snapshotRepository,
                         SprintCapacityRepository capacityRepository,
                         MemberAvailabilityRepository availabilityRepository,
-                        ProjectWorkingHoursRepository workingHoursRepository) {
+                        ProjectWorkingHoursRepository workingHoursRepository,
+                        TicketService ticketService) {
                 this.sprintRepository = sprintRepository;
                 this.projectRepository = projectRepository;
                 this.projectUserRepository = projectUserRepository;
@@ -65,6 +69,7 @@ public class SprintService {
                 this.capacityRepository = capacityRepository;
                 this.availabilityRepository = availabilityRepository;
                 this.workingHoursRepository = workingHoursRepository;
+                this.ticketService = ticketService;
         }
 
         // =========================================================
@@ -272,9 +277,18 @@ public class SprintService {
                 for (Ticket ticket : sprintTickets) {
                         SprintIssueSnapshot snapshot = snapshotByTicket.get(ticket.getId());
                         if (snapshot == null) {
-                                snapshot = SprintIssueSnapshot.builder().sprint(sprint).ticketId(ticket.getId())
+                                // A ticket added after sprint start has no baseline snapshot.
+                                // Capture its final sprint value here so completed-sprint
+                                // history remains complete without changing the original baseline.
+                                snapshot = SprintIssueSnapshot.builder()
+                                                .sprint(sprint)
+                                                .ticketId(ticket.getId())
+                                                .estimation(nz(ticket.getEstimation()))
                                                 .build();
                         }
+                        snapshot.setEstimation(nz(snapshot.getEstimation()).signum() == 0
+                                        ? nz(ticket.getEstimation())
+                                        : snapshot.getEstimation());
                         snapshot.setResolvedAt(ticket.getResolvedAt());
                         snapshot.setFinalStatusCategory(ticket.getStatus().getCategory());
                         finalSnapshots.add(snapshot);
@@ -314,7 +328,15 @@ public class SprintService {
 
                 List<Ticket> liveTickets = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId).stream()
                                 .filter(t -> t.getDeletedAt() == null).toList();
-                if (snapshots.isEmpty()) {
+                // ACTIVE/PLANNED sprints use the live sprint scope for the burndown.
+                // The snapshot is the immutable commitment baseline and must not hide
+                // tickets that were added to the sprint later from the current burndown.
+                boolean historicalSprint = sprint.getStatus() == SprintStatus.COMPLETED
+                                || sprint.getStatus() == SprintStatus.CANCELLED;
+                if (!historicalSprint) {
+                        committedByTicket.clear();
+                        liveTickets.forEach(t -> committedByTicket.put(t.getId(), nz(t.getEstimation())));
+                } else if (snapshots.isEmpty()) {
                         liveTickets.forEach(t -> committedByTicket.put(t.getId(), nz(t.getEstimation())));
                 }
 
@@ -328,6 +350,8 @@ public class SprintService {
                                 : dateOnly(sprint.getEndDate());
                 if (end.isBefore(start))
                         end = start;
+                if (!historicalSprint && end.isAfter(LocalDate.now()))
+                        end = LocalDate.now();
 
                 Map<Long, Ticket> liveById = new LinkedHashMap<>();
                 liveTickets.forEach(t -> liveById.put(t.getId(), t));
@@ -381,26 +405,32 @@ public class SprintService {
         // GET SPRINT TICKETS
         // =========================================================
         @Transactional(readOnly = true)
-        public List<Ticket> getSprintTickets(Long sprintId) {
+        public List<TicketResponse> getSprintTickets(Long sprintId) {
                 getSprint(sprintId);
-                return ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
+                return ticketRepository.findBySprintIdOrderByOrderAsc(sprintId).stream()
+                                .filter(ticket -> ticket.getDeletedAt() == null)
+                                .map(ticketService::toResponse)
+                                .toList();
         }
 
         // =========================================================
         // GET PROJECT BACKLOG
         // =========================================================
         @Transactional(readOnly = true)
-        public List<Ticket> getBacklog(Long projectId) {
+        public List<TicketResponse> getBacklog(Long projectId) {
                 if (!projectRepository.existsById(projectId)) {
                         throw new RuntimeException("Project not found");
                 }
-                return ticketRepository.findByProjectIdAndSprintIsNullOrderByOrderAsc(projectId);
+                return ticketRepository.findByProjectIdAndSprintIsNullOrderByOrderAsc(projectId).stream()
+                                .filter(ticket -> ticket.getDeletedAt() == null)
+                                .map(ticketService::toResponse)
+                                .toList();
         }
 
         // =========================================================
         // ADD TICKET TO SPRINT
         // =========================================================
-        public Ticket addTicket(Long sprintId, Long ticketId, Long userId) {
+        public TicketResponse addTicket(Long sprintId, Long ticketId, Long userId) {
                 Sprint sprint = getSprint(sprintId);
 
                 validateProjectAccess(sprint.getProject().getId(), userId);
@@ -416,14 +446,23 @@ public class SprintService {
                         throw new RuntimeException("Ticket cannot be added to completed/cancelled sprint");
                 }
 
+                // Backlog -> sprint is a real planning operation. Append the ticket
+                // to the sprint instead of leaving an arbitrary/duplicate board order.
+                List<Ticket> sprintTickets = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
                 ticket.setSprint(sprint);
-                return ticketRepository.save(ticket);
+                ticket.setOrder(sprintTickets.size());
+
+                // IMPORTANT: do not create a commitment snapshot here.
+                // Snapshots represent the sprint-start baseline only. A ticket added
+                // after an ACTIVE sprint has started is current scope / added scope.
+                // If the sprint is PLANNED, start() will capture all tickets together.
+                return ticketService.toResponse(ticketRepository.save(ticket));
         }
 
         // =========================================================
         // REMOVE TICKET FROM SPRINT
         // =========================================================
-        public Ticket removeTicket(Long sprintId, Long ticketId, Long userId) {
+        public TicketResponse removeTicket(Long sprintId, Long ticketId, Long userId) {
                 Sprint sprint = getSprint(sprintId);
 
                 validateProjectAccess(sprint.getProject().getId(), userId);
@@ -436,20 +475,20 @@ public class SprintService {
                 }
 
                 ticket.setSprint(null);
-                return ticketRepository.save(ticket);
+                return ticketService.toResponse(ticketRepository.save(ticket));
         }
 
         // =========================================================
         // MOVE TICKET TO BACKLOG
         // =========================================================
-        public Ticket moveToBacklog(Long ticketId, Long userId) {
+        public TicketResponse moveToBacklog(Long ticketId, Long userId) {
                 Ticket ticket = ticketRepository.findById(ticketId)
                                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
 
                 validateProjectAccess(ticket.getProject().getId(), userId);
 
                 ticket.setSprint(null);
-                return ticketRepository.save(ticket);
+                return ticketService.toResponse(ticketRepository.save(ticket));
         }
 
         // =========================================================
@@ -566,18 +605,63 @@ public class SprintService {
         public SprintReportResponse report(Long sprintId) {
                 Sprint sprint = getSprint(sprintId);
                 projectAccessService.requireView(sprint.getProject());
-                List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(sprintId);
-                List<Ticket> current = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
+
+                List<Ticket> current = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId).stream()
+                                .filter(t -> t.getDeletedAt() == null)
+                                .toList();
+                List<SprintIssueSnapshot> snapshots = snapshotRepository
+                                .findBySprintIdOrderByTicketIdAsc(sprintId);
+
+                boolean historicalSprint = sprint.getStatus() == SprintStatus.COMPLETED
+                                || sprint.getStatus() == SprintStatus.CANCELLED;
+
+                if (!historicalSprint) {
+                        BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation()))
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        BigDecimal completed = current.stream()
+                                        .filter(t -> t.getStatus() != null
+                                                        && t.getStatus().getCategory() == TicketStatusCategory.DONE)
+                                        .map(t -> nz(t.getEstimation()))
+                                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                        BigDecimal completion = currentEstimate.signum() == 0 ? BigDecimal.ZERO
+                                        : completed.multiply(BigDecimal.valueOf(100)).divide(currentEstimate, 2,
+                                                        java.math.RoundingMode.HALF_UP);
+                        List<SprintReportResponse.SprintReportIssue> issues = current
+                                        .stream().map(ticket -> SprintReportResponse.SprintReportIssue.builder()
+                                                        .ticketId(ticket.getId()).code(ticket.getCode())
+                                                        .name(ticket.getName()).estimation(nz(ticket.getEstimation()))
+                                                        .status(ticket.getStatus() == null ? null
+                                                                        : ticket.getStatus().getName())
+                                                        .statusCategory(ticket.getStatus() == null ? null
+                                                                        : ticket.getStatus().getCategory().name())
+                                                        .completed(ticket.getStatus() != null
+                                                                        && ticket.getStatus()
+                                                                                        .getCategory() == TicketStatusCategory.DONE)
+                                                        .build())
+                                        .toList();
+                        return SprintReportResponse.builder().sprintId(sprintId).sprintName(sprint.getName())
+                                        .status(sprint.getStatus()).goal(sprint.getGoal())
+                                        .committedTickets((long) current.size())
+                                        .completedTickets(current.stream().filter(t -> t.getStatus() != null
+                                                        && t.getStatus().getCategory() == TicketStatusCategory.DONE)
+                                                        .count())
+                                        .incompleteTickets(current.stream().filter(t -> t.getStatus() == null
+                                                        || (t.getStatus().getCategory() != TicketStatusCategory.DONE
+                                                                        && t.getStatus().getCategory() != TicketStatusCategory.CANCELLED))
+                                                        .count())
+                                        .committedEstimate(currentEstimate).completedEstimate(completed)
+                                        .remainingEstimate(currentEstimate.subtract(completed).max(BigDecimal.ZERO))
+                                        .completionPercent(completion).scopeChangeEstimate(BigDecimal.ZERO)
+                                        .commitmentCompletionPercent(completion).issues(issues).build();
+                }
+
                 Map<Long, Ticket> currentById = new LinkedHashMap<>();
                 current.forEach(t -> currentById.put(t.getId(), t));
-                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO,
-                                BigDecimal::add);
+                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation()))
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal completed = snapshots.stream()
                                 .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
                                 .map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation())).reduce(BigDecimal.ZERO,
-                                BigDecimal::add);
-                BigDecimal scopeChange = currentEstimate.subtract(committed);
                 List<SprintReportResponse.SprintReportIssue> issues = snapshots.stream().map(snapshot -> {
                         Ticket ticket = currentById.get(snapshot.getTicketId());
                         String status = ticket != null && ticket.getStatus() != null ? ticket.getStatus().getName()
@@ -593,6 +677,8 @@ public class SprintService {
                 BigDecimal completion = committed.signum() == 0 ? BigDecimal.ZERO
                                 : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2,
                                                 java.math.RoundingMode.HALF_UP);
+                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation()))
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
                 return SprintReportResponse.builder().sprintId(sprintId).sprintName(sprint.getName())
                                 .status(sprint.getStatus()).goal(sprint.getGoal())
                                 .committedTickets((long) snapshots.size())
@@ -605,8 +691,10 @@ public class SprintService {
                                                 .count())
                                 .committedEstimate(committed).completedEstimate(completed)
                                 .remainingEstimate(committed.subtract(completed).max(BigDecimal.ZERO))
-                                .completionPercent(completion).scopeChangeEstimate(scopeChange)
-                                .commitmentCompletionPercent(completion).issues(issues).build();
+                                .completionPercent(completion)
+                                .scopeChangeEstimate(currentEstimate.subtract(committed))
+                                .commitmentCompletionPercent(completion)
+                                .issues(issues).build();
         }
 
         // =========================================================
@@ -617,26 +705,44 @@ public class SprintService {
                 Sprint sprint = getSprint(sprintId);
                 projectAccessService.requireView(sprint.getProject());
                 List<SprintIssueSnapshot> snapshots = snapshotRepository.findBySprintIdOrderByTicketIdAsc(sprintId);
-                List<Ticket> current = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId);
-                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO,
-                                BigDecimal::add);
-                BigDecimal completed = snapshots.stream()
-                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
-                                .map(x -> nz(x.getEstimation())).reduce(BigDecimal.ZERO, BigDecimal::add);
-                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation())).reduce(BigDecimal.ZERO,
-                                BigDecimal::add);
+                List<Ticket> current = ticketRepository.findBySprintIdOrderByOrderAsc(sprintId).stream()
+                                .filter(t -> t.getDeletedAt() == null).toList();
+                boolean historicalSprint = sprint.getStatus() == SprintStatus.COMPLETED
+                                || sprint.getStatus() == SprintStatus.CANCELLED;
+
+                BigDecimal currentEstimate = current.stream().map(t -> nz(t.getEstimation()))
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                BigDecimal committed = snapshots.stream().map(x -> nz(x.getEstimation()))
+                                .reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (snapshots.isEmpty() && !historicalSprint)
+                        committed = currentEstimate;
+
+                BigDecimal completed = historicalSprint
+                                ? snapshots.stream()
+                                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                .map(x -> nz(x.getEstimation()))
+                                                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                : current.stream().filter(t -> t.getStatus() != null
+                                                && t.getStatus().getCategory() == TicketStatusCategory.DONE)
+                                                .map(t -> nz(t.getEstimation()))
+                                                .reduce(BigDecimal.ZERO, BigDecimal::add);
                 BigDecimal pct = committed.signum() == 0 ? BigDecimal.ZERO
                                 : completed.multiply(BigDecimal.valueOf(100)).divide(committed, 2,
                                                 java.math.RoundingMode.HALF_UP);
                 return SprintCommitmentResponse.builder().sprintId(sprintId).sprintName(sprint.getName())
-                                .committedEstimate(committed)
-                                .completedEstimate(completed)
+                                .committedEstimate(committed).completedEstimate(completed)
                                 .remainingCommittedEstimate(committed.subtract(completed).max(BigDecimal.ZERO))
                                 .scopeChangeEstimate(currentEstimate.subtract(committed))
-                                .committedTickets((long) snapshots.size())
-                                .completedTickets(snapshots.stream()
-                                                .filter(x -> x.getFinalStatusCategory() == TicketStatusCategory.DONE)
-                                                .count())
+                                .committedTickets(historicalSprint ? (long) snapshots.size()
+                                                : (snapshots.isEmpty() ? (long) current.size()
+                                                                : (long) snapshots.size()))
+                                .completedTickets(historicalSprint
+                                                ? snapshots.stream().filter(x -> x
+                                                                .getFinalStatusCategory() == TicketStatusCategory.DONE)
+                                                                .count()
+                                                : current.stream().filter(t -> t.getStatus() != null
+                                                                && t.getStatus().getCategory() == TicketStatusCategory.DONE)
+                                                                .count())
                                 .currentTickets((long) current.size()).completionPercent(pct).build();
         }
 

@@ -1131,7 +1131,7 @@ public class TicketService {
                                 currentUserService.getCurrentUser());
         }
 
-        private TicketResponse toResponse(
+        public TicketResponse toResponse(
                         Ticket ticket) {
 
                 Long ownerId = null;
