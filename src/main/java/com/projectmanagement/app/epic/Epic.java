@@ -3,6 +3,7 @@ package com.projectmanagement.app.epic;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+import com.projectmanagement.app.milestone.Milestone;
 import com.projectmanagement.app.project.Project;
 
 import jakarta.persistence.Column;
@@ -46,6 +47,10 @@ public class Epic {
 
     @Column(name = "name", nullable = false, length = 255)
     private String name;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "milestone_id", nullable = true, foreignKey = @ForeignKey(name = "epics_milestone_id_foreign"))
+    private Milestone milestone;
 
     @Column(name = "starts_at", nullable = false)
     private LocalDate startsAt;

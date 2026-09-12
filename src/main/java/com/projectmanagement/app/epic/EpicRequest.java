@@ -24,17 +24,27 @@ public class EpicRequest {
     @Positive
     private Long projectId;
 
-    @NotBlank
-    @Size(max = 255)
+    /**
+     * Epic must belong to a Milestone.
+     */
+    @NotNull(message = "Milestone is required")
+    @Positive(message = "Milestone ID must be greater than 0")
+    private Long milestoneId;
+
+    @NotBlank(message = "Epic name is required")
+    @Size(max = 255, message = "Epic name must not exceed 255 characters")
     private String name;
 
-    @NotNull
+    @NotNull(message = "Start date is required")
     private LocalDate startsAt;
 
-    @NotNull
+    @NotNull(message = "End date is required")
     private LocalDate endsAt;
 
-    @Positive
+    /**
+     * Optional parent Epic.
+     */
+    @Positive(message = "Parent Epic ID must be greater than 0")
     private Long parentId;
 
     @AssertTrue(message = "End date must be on or after start date")

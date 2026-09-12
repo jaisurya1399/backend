@@ -45,4 +45,6 @@ public interface ProjectUserRepository extends JpaRepository<ProjectUser, Long> 
 
         long countByUserId(Long userId);
 
+        // Only users whose deletedAt is NULL
+        List<ProjectUser> findByProjectIdAndUser_DeletedAtIsNull(Long projectId);
 }

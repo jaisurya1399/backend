@@ -21,6 +21,9 @@ public class EpicResponse {
     private Long projectId;
     private String projectName;
 
+    private Long milestoneId;
+    private String milestoneName;
+
     private String name;
 
     private LocalDate startsAt;
